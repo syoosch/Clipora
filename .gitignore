@@ -1,0 +1,75 @@
+# ---- .NET build output ----
+bin/
+obj/
+out/
+publish/
+*.binlog
+*.exe
+*.dll
+*.pdb
+
+# ---- IDE and editor state ----
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+_ReSharper*/
+*.DotSettings.user
+
+# ---- Local environment and secrets ----
+.env
+.env.*
+!.env.example
+secrets.json
+secrets.*.json
+settings.local.json
+appsettings.*.local.json
+*.pem
+*.key
+*.pfx
+*.p12
+*.jks
+*.keystore
+*.cer
+*.crt
+*.der
+*.snk
+
+# ---- Runtime data and backups ----
+/data/
+/Clipora-data/
+/.dev-data/
+*.clipora-export
+*.clpbak
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+
+# ---- Installer, archives, logs, and diagnostics ----
+/dist/
+/dist-portable/
+*.zip
+*.7z
+*.rar
+*.nupkg
+*.snupkg
+*.log
+*.dmp
+
+# ---- Tests and coverage ----
+[Tt]est[Rr]esult*/
+coverage*.json
+coverage*.xml
+*.coverage
+
+# ---- Operating system files ----
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store

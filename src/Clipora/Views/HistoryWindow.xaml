@@ -1,0 +1,2446 @@
+<ui:FluentWindow x:Class="Clipora.Views.HistoryWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:common="clr-namespace:Clipora.Common"
+                 xmlns:models="clr-namespace:Clipora.Models"
+                 xmlns:local="clr-namespace:Clipora.Views"
+                 xmlns:vm="clr-namespace:Clipora.ViewModels"
+                 xmlns:controls="clr-namespace:Clipora.Controls"
+                 Title="Clipora"
+                 Icon="pack://application:,,,/Assets/clipora-icon.png"
+                 Width="380" Height="560"
+                 MinWidth="300" MinHeight="400"
+                 WindowStartupLocation="CenterScreen"
+                 WindowBackdropType="Mica"
+                 Background="Transparent"
+                 ExtendsContentIntoTitleBar="True">
+
+    <ui:FluentWindow.Resources>
+        <common:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <!-- 隐式 DataTemplate：按数据类型自动选模板，无需 ItemTemplateSelector -->
+        <!-- 卡片模板（完全不变，从原 ListBox.ItemTemplate 迁移为隐式模板） -->
+        <DataTemplate DataType="{x:Type vm:ClipItemViewModel}">
+            <Button Command="{Binding DataContext.UseCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                    CommandParameter="{Binding}"
+                    PreviewMouseLeftButtonDown="Card_PreviewMouseLeftButtonDown"
+                    PreviewMouseMove="Card_PreviewMouseMove"
+                    PreviewMouseLeftButtonUp="Card_PreviewMouseLeftButtonUp"
+                    Cursor="Hand"
+                    Style="{x:Null}" FocusVisualStyle="{x:Null}"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                    Background="Transparent" BorderThickness="0" Padding="0">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border Style="{DynamicResource CliporaCard}">
+                            <ContentPresenter />
+                        </Border>
+                    </ControlTemplate>
+                </Button.Template>
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="8" Height="8" Fill="{Binding TypeColor}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding TypeLabel}" FontSize="11" Margin="6,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="{Binding SourceApp}" FontSize="12" Margin="10,0,0,0"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Segoe UI Variable Display" FontWeight="Medium"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <Grid Grid.Column="1" VerticalAlignment="Top" Margin="8,0,0,0">
+                            <TextBlock Text="{Binding TimeText}" FontSize="11"
+                                       HorizontalAlignment="Right"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                                                <Setter Property="Opacity" Value="0" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Opacity" Value="0" />
+                                        <Setter Property="IsHitTestVisible" Value="False" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                                                <Setter Property="Opacity" Value="1" />
+                                                <Setter Property="IsHitTestVisible" Value="True" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <Button Style="{DynamicResource CardIconButton}" ToolTip="{Binding ActionButtonTooltip}"
+                                        Command="{Binding DataContext.CardActionCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                        CommandParameter="{Binding}"
+                                        Content="{Binding ActionButtonIcon}"
+                                        Visibility="{Binding ShowActionButton, Converter={StaticResource BoolToVis}}" />
+                                <Button Style="{DynamicResource CardIconButton}" ToolTip="置顶"
+                                        Command="{Binding DataContext.PinCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                        CommandParameter="{Binding}" Content="&#xE718;" />
+                                <Button Style="{DynamicResource CardIconButton}" ToolTip="贴标签"
+                                        Command="{Binding DataContext.ToggleTagEditorCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                        CommandParameter="{Binding}" Content="&#xE8EC;"
+                                        IsEnabled="{Binding HasTagOptions}" />
+                                <Button Style="{DynamicResource CardIconButton}" ToolTip="删除"
+                                        Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                        CommandParameter="{Binding}" Content="&#xE74D;" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                    <Image Source="{Binding Thumbnail}"
+                           MaxHeight="96" MaxWidth="200" Stretch="Uniform"
+                           HorizontalAlignment="Left" Margin="0,8,0,0"
+                           common:RoundImage.Radius="8"
+                           MouseEnter="Thumbnail_MouseEnter"
+                           MouseLeave="Thumbnail_MouseLeave"
+                           Visibility="{Binding HasThumbnail, Converter={StaticResource BoolToVis}}" />
+                    <Border CornerRadius="8" Padding="9,7" Margin="0,7,0,0"
+                            Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                            Visibility="{Binding IsUrl, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding UrlHost}" FontSize="13" FontWeight="Medium"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="{Binding UrlDisplay}" Margin="0,2,0,0" FontSize="11"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        </StackPanel>
+                    </Border>
+                    <Border CornerRadius="8" Padding="9,7" Margin="0,7,0,0"
+                            Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                            Visibility="{Binding IsCode, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding Preview}" TextWrapping="Wrap" MaxHeight="96"
+                                   TextTrimming="CharacterEllipsis"
+                                   FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </Border>
+                    <TextBlock common:FileNameTrimming.FileName="{Binding Preview}" TextWrapping="NoWrap"
+                               LineHeight="18" Margin="0,6,0,0" FontSize="13"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               Visibility="{Binding IsSingleFile, Converter={StaticResource BoolToVis}}" />
+                    <StackPanel Margin="0,6,0,0" Visibility="{Binding IsMultiFile, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding FileCountText}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                   LineHeight="16" FontFamily="Segoe UI Variable Display" FontSize="11"
+                                   FontWeight="Medium" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        <TextBlock Text="{Binding FilePreviewName1}" Margin="0,2,0,0" TextWrapping="NoWrap"
+                                   TextTrimming="CharacterEllipsis" LineHeight="18" FontSize="13"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="{Binding FilePreviewName2}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                   LineHeight="18" FontSize="13"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Preview}" TextWrapping="Wrap" MaxHeight="64"
+                               TextTrimming="CharacterEllipsis" Margin="0,6,0,0" FontSize="13"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               Visibility="{Binding IsStandardPreview, Converter={StaticResource BoolToVis}}" />
+                    <Border CornerRadius="7" Padding="7,4" Margin="0,6,0,0" HorizontalAlignment="Left"
+                            Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            Visibility="{Binding HasColorPreview, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="18" Height="18" CornerRadius="5"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                                    Background="{Binding ColorPreviewBrush}" />
+                            <TextBlock Text="{Binding ColorPreviewText}" Margin="7,0,0,0" VerticalAlignment="Center"
+                                       FontFamily="Cascadia Mono, Consolas" FontSize="11"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding Tags}" Margin="0,8,0,0"
+                                  Visibility="{Binding HasTags, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border CornerRadius="8" Padding="7,3" Margin="0,0,6,4"
+                                        Background="{DynamicResource ControlFillColorSecondaryBrush}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="7" Height="7" Fill="{Binding ColorBrush}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Label}" FontSize="11" Margin="5,0,0,0"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border CornerRadius="8" Padding="8" Margin="0,6,0,0"
+                            Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            Visibility="{Binding IsTagEditorOpen, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl ItemsSource="{Binding TagOptions}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{DynamicResource FilterChip}"
+                                            Command="{Binding DataContext.ToggleClipTagCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="7" Height="7" Fill="{Binding ColorBrush}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Label}" Margin="6,0,0,0" />
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                    <TextBlock Text="{Binding ReferenceStatusText}" HorizontalAlignment="Right"
+                               Margin="0,4,2,0" FontSize="11" FontWeight="Medium"
+                               Visibility="{Binding IsReferenceOnlyFile, Converter={StaticResource BoolToVis}}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="#8A7764" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsReferenceInvalid}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </Button>
+        </DataTemplate>
+        <common:AdaptiveColumnCountConverter x:Key="AppearanceColumnCount"
+                                             TwoColumnMinimumWidth="230"
+                                             ThreeColumnMinimumWidth="350" />
+
+        <!-- 图标按钮使用 Fluent Icons 字体；Tooltip 必须显式切回文字字体，避免中文显示为方框。 -->
+        <Style TargetType="ToolTip">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Microsoft YaHei UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="9,6" />
+            <Setter Property="MaxWidth" Value="320" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border Padding="{TemplateBinding Padding}"
+                                CornerRadius="6"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="12" ShadowDepth="2" Direction="270" Color="Black" Opacity="0.16" />
+                            </Border.Effect>
+                            <ContentPresenter RecognizesAccessKey="True"
+                                              TextElement.FontFamily="{TemplateBinding FontFamily}"
+                                              TextElement.FontSize="{TemplateBinding FontSize}"
+                                              TextElement.FontWeight="{TemplateBinding FontWeight}"
+                                              TextElement.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 标题栏图标按钮：透明、悬停高亮、圆角 -->
+        <Style x:Key="CaptionButton" TargetType="ButtonBase">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ButtonBase">
+                        <Grid RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform>
+                                <ScaleTransform x:Name="scale" ScaleX="1" ScaleY="1" />
+                            </Grid.RenderTransform>
+                            <!-- 静止态可见底（iOS 风格圆角键） -->
+                            <Border CornerRadius="7"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}" />
+                            <!-- 悬停高亮（明显的强调色叠加） -->
+                            <Border x:Name="hover" CornerRadius="7" Opacity="0"
+                                    Background="{DynamicResource ControlFillColorDefaultBrush}" />
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleX" To="1.12" Duration="0:0:0.12">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleY" To="1.12" Duration="0:0:0.12">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="hover" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.16">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.16">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 类型筛选胶囊 chip：选中=强调色，悬停=浅色 -->
+        <Style x:Key="FilterChip" TargetType="Button">
+            <Setter Property="Margin" Value="0,0,6,6" />
+            <Setter Property="Padding" Value="12,4,12,4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform>
+                                <ScaleTransform x:Name="scale" ScaleX="1" ScaleY="1" />
+                            </Grid.RenderTransform>
+                            <Border x:Name="b" CornerRadius="8" BorderThickness="1" BorderBrush="Transparent"
+                                    Background="{DynamicResource ControlFillColorSecondaryBrush}" />
+                            <Border x:Name="hover" CornerRadius="8" Opacity="0" Background="{DynamicResource ControlFillColorDefaultBrush}" />
+                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleX" To="1.06" Duration="0:0:0.12">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleY" To="1.06" Duration="0:0:0.12">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="hover" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.16">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.16">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                                <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <Setter Property="FontWeight" Value="Medium" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DeleteTagButton" TargetType="Button">
+            <Setter Property="Width" Value="12" />
+            <Setter Property="Height" Value="12" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="#E9ECEF" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="6" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="b" Width="{TemplateBinding Width}" Height="{TemplateBinding Height}"
+                                CornerRadius="6" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="#D86A6A" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CaptionToggleButton" TargetType="ToggleButton" BasedOn="{StaticResource CaptionButton}">
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SettingsCategoryButton" TargetType="Button">
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Style="{DynamicResource CliporaCard}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SettingsBackButton" TargetType="Button">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Margin" Value="0,-3,14,5" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Surface"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="7"
+                                Background="{TemplateBinding Background}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Surface"
+                                        Property="Background"
+                                        Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AppearanceOptionButton" TargetType="Button">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Margin" Value="4" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform>
+                                <ScaleTransform x:Name="scale" ScaleX="1" ScaleY="1" />
+                            </Grid.RenderTransform>
+                            <Border CornerRadius="8"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}" />
+                            <Border x:Name="hover"
+                                    CornerRadius="8"
+                                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                    Opacity="0" />
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <!-- 轻微缩放：选中/未选中一致的悬停动效（一致的"被指向"反馈）。 -->
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="scale"
+                                                             Storyboard.TargetProperty="ScaleX"
+                                                             To="1.025" Duration="0:0:0.12">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="scale"
+                                                             Storyboard.TargetProperty="ScaleY"
+                                                             To="1.025" Duration="0:0:0.12">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="scale"
+                                                             Storyboard.TargetProperty="ScaleX"
+                                                             To="1" Duration="0:0:0.16">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="scale"
+                                                             Storyboard.TargetProperty="ScaleY"
+                                                             To="1" Duration="0:0:0.16">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                            <!-- 未选中（Tag 为空）：中性渐显较明显，给清晰的悬停提示。 -->
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True" />
+                                    <Condition Property="Tag" Value="{x:Null}" />
+                                </MultiTrigger.Conditions>
+                                <MultiTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="hover"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.85" Duration="0:0:0.12" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </MultiTrigger.EnterActions>
+                                <MultiTrigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="hover"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0" Duration="0:0:0.16" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </MultiTrigger.ExitActions>
+                            </MultiTrigger>
+                            <!-- 选中态（Tag=selected）：亮色底已很突出，渐显降到很弱，避免中性罩冲淡强调色而过于刺眼。 -->
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True" />
+                                    <Condition Property="Tag" Value="selected" />
+                                </MultiTrigger.Conditions>
+                                <MultiTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="hover"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.18" Duration="0:0:0.12" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </MultiTrigger.EnterActions>
+                                <MultiTrigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="hover"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0" Duration="0:0:0.16" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </MultiTrigger.ExitActions>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ===== 设置详情：分组卡 + 设置行工具集（M4.1.2，纯 UI 框架） ===== -->
+        <!-- 分组大卡：复用卡片底色/描边/圆角，但静止不浮起；4px 内边距让行悬停高亮的圆角不触卡片外角。 -->
+        <Style x:Key="SettingsGroupCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="Margin" Value="6,0,14,12" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+        </Style>
+
+        <!-- 分组小标题（置于分组卡上方） -->
+        <Style x:Key="SettingsGroupHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+            <Setter Property="Margin" Value="12,2,14,6" />
+        </Style>
+
+        <!-- 设置行容器：行内中性灰悬停高亮（平滑渐显，套用全局交互基调）；
+             右侧交互控件照常接收鼠标，不被悬停层拦截。 -->
+        <Style x:Key="SettingsRow" TargetType="ContentControl">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContentControl">
+                        <Grid>
+                            <Border x:Name="hover" CornerRadius="6" Opacity="0"
+                                    Background="{DynamicResource ControlFillColorDefaultBrush}" />
+                            <ContentPresenter Margin="8,9,8,9"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="hover" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 行内分隔线（卡片内多行之间，左右内缩与文字对齐） -->
+        <Style x:Key="SettingsRowDivider" TargetType="Border">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="8,0,8,0" />
+            <Setter Property="Background" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+        </Style>
+
+        <!-- 行主标题 -->
+        <Style x:Key="SettingsRowTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <!-- 行说明 / 内联提示（次要灰，可换行） -->
+        <Style x:Key="SettingsRowDesc" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+        </Style>
+
+        <!-- 内联错误 / 危险说明（红，跟随主题） -->
+        <Style x:Key="SettingsRowError" TargetType="TextBlock" BasedOn="{StaticResource SettingsRowDesc}">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+        </Style>
+
+        <!-- 右侧只读值文本 -->
+        <Style x:Key="SettingsRowValue" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- 设置下拉项：中性灰悬停/选中，不使用大面积强调蓝。 -->
+        <Style x:Key="SettingsSelectorItem" TargetType="ComboBoxItem">
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="Margin" Value="4,2" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="ItemSurface"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemSurface" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemSurface" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                <Setter TargetName="ItemSurface" Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+                                <Setter Property="FontWeight" Value="Medium" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 右侧选择器：圆角中性控件；收起时滚轮交给设置页，不改变选项。 -->
+        <Style x:Key="SettingsSelector" TargetType="ComboBox">
+            <Setter Property="MinWidth" Value="128" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="10,0,8,0" />
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="MaxDropDownHeight" Value="240" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource SettingsSelectorItem}" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel" />
+            <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+            <EventSetter Event="PreviewMouseWheel" Handler="SettingsSelector_PreviewMouseWheel" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid x:Name="Root">
+                            <ToggleButton x:Name="Toggle"
+                                          Focusable="False"
+                                          ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                          Background="Transparent"
+                                          BorderThickness="0">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="SelectorSurface"
+                                                Background="{Binding Background, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                BorderThickness="{Binding BorderThickness, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                CornerRadius="7">
+                                            <Grid Margin="{Binding Padding, RelativeSource={RelativeSource AncestorType=ComboBox}}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <ContentPresenter Grid.Column="0"
+                                                                  VerticalAlignment="Center"
+                                                                  Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                                  ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                                  TextElement.Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ComboBox}}" />
+                                                <TextBlock Grid.Column="1"
+                                                           Margin="10,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           Text="&#xE70D;"
+                                                           FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                           FontSize="9"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="SelectorSurface" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="SelectorSurface" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                                                <Setter TargetName="SelectorSurface" Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+
+                            <Popup x:Name="PART_Popup"
+                                   AllowsTransparency="True"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Placement="Bottom"
+                                   PopupAnimation="Fade"
+                                   StaysOpen="False">
+                                <Border Width="{Binding ActualWidth, ElementName=Root}"
+                                        Margin="0,4,0,0"
+                                        Padding="2"
+                                        CornerRadius="8"
+                                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="16" ShadowDepth="3" Direction="270" Color="Black" Opacity="0.18" />
+                                    </Border.Effect>
+                                    <ScrollViewer MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  CanContentScroll="True">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 危险操作按钮（红字描边，悬停柔和高亮，禁用降透明） -->
+        <Style x:Key="SettingsDangerButton" TargetType="Button">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bg" CornerRadius="7"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 次要操作按钮（如"更改…"，中性字色，复用危险按钮模板） -->
+        <Style x:Key="SettingsSecondaryButton" TargetType="Button" BasedOn="{StaticResource SettingsDangerButton}">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+
+        <Style x:Key="CustomBackgroundPickerButton" TargetType="Button" BasedOn="{StaticResource SettingsSecondaryButton}">
+            <Setter Property="Height" Value="46" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style x:Key="CustomBackgroundClearButton" TargetType="Button" BasedOn="{StaticResource AppearanceOptionButton}">
+            <Setter Property="Width" Value="52" />
+            <Setter Property="MinWidth" Value="52" />
+            <Setter Property="Height" Value="46" />
+            <Setter Property="Margin" Value="10,0,0,0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+
+        <!-- 卡片右上角小操作按钮（置顶/删除） -->
+        <Style x:Key="CardIconButton" TargetType="Button">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform>
+                                <ScaleTransform x:Name="scale" ScaleX="1" ScaleY="1" />
+                            </Grid.RenderTransform>
+                            <Border x:Name="hover" CornerRadius="5" Opacity="0"
+                                    Background="{DynamicResource ControlFillColorDefaultBrush}" />
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleX" To="1.12" Duration="0:0:0.12">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleY" To="1.12" Duration="0:0:0.12">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="hover" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.16">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.16">
+                                                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.36" />
+                    <Setter Property="Cursor" Value="Arrow" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ColorSwatchButton" TargetType="Button">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,7,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ring" Width="20" Height="20" CornerRadius="10"
+                                BorderThickness="1" BorderBrush="Transparent"
+                                Background="Transparent">
+                            <Ellipse Width="12" Height="12"
+                                     HorizontalAlignment="Center"
+                                     VerticalAlignment="Center"
+                                     Fill="{Binding ColorBrush}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ring" Property="BorderBrush" Value="#B8BDC4" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter TargetName="ring" Property="BorderBrush" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <Grid x:Name="RootGrid" PreviewMouseDown="Root_PreviewMouseDown"
+          AllowDrop="True"
+          DragEnter="Root_DragEnter"
+          DragOver="Root_DragOver"
+          DragLeave="Root_DragLeave"
+          Drop="Root_Drop">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border x:Name="CustomBackgroundLayer"
+                Grid.RowSpan="2"
+                Panel.ZIndex="-10"
+                IsHitTestVisible="False"
+                Opacity="0" />
+
+        <!-- 液态玻璃全窗口遮罩：位于 DWM Acrylic 之上、所有内容之下，alpha 随通透度滑条变化 -->
+        <Border x:Name="LiquidGlassOverlay"
+                Grid.RowSpan="2"
+                Panel.ZIndex="-9"
+                IsHitTestVisible="False"
+                Background="{DynamicResource LiquidGlassWindowOverlayBrush}" />
+
+        <Grid Grid.Row="0" Height="48">
+            <ui:TitleBar Height="48" Title="" ShowMaximize="False" ShowMinimize="False" ShowClose="False">
+                <ui:TitleBar.TrailingContent>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                        <Button x:Name="SearchButton" Style="{StaticResource CaptionButton}" Command="{Binding ToggleFilterCommand}"
+                                ToolTip="搜索 / 筛选" Content="&#xE721;" Margin="0,0,4,0" />
+                        <Button x:Name="TagManagerButton" Style="{StaticResource CaptionButton}" Command="{Binding ToggleTagManagerCommand}"
+                                ToolTip="管理标签" Content="&#xE8EC;" Margin="0,0,4,0" />
+                        <ToggleButton x:Name="AlwaysOnTopButton"
+                                      Style="{StaticResource CaptionToggleButton}"
+                                      Click="AlwaysOnTop_Click"
+                                      ToolTip="置顶窗口"
+                                      Content="&#xE718;"
+                                      Margin="0,0,4,0" />
+                        <Button x:Name="SettingsButton" Style="{StaticResource CaptionButton}"
+                                Click="Settings_Click"
+                                ToolTip="设置"
+                                Content="&#xE713;"
+                                Margin="0,0,4,0" />
+                        <Button Style="{StaticResource CaptionButton}" Click="Minimize_Click"
+                                ToolTip="最小化" Content="&#xE921;" />
+                        <Button Style="{StaticResource CaptionButton}" Click="Close_Click"
+                                ToolTip="关闭" Content="&#xE8BB;" Margin="4,0,0,0" />
+                    </StackPanel>
+                </ui:TitleBar.TrailingContent>
+            </ui:TitleBar>
+
+            <TextBlock x:Name="WindowTitleText"
+                       Text="Clipora"
+                       Margin="14,0,0,0"
+                       HorizontalAlignment="Left"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       FontFamily="Segoe UI Variable Display"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Grid>
+
+        <Grid x:Name="HistoryContent" Grid.Row="1" Margin="6,0,0,8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- 搜索 + 类型筛选（默认收起，由标题栏最左键展开） -->
+            <StackPanel Grid.Row="0" Margin="0,0,8,8"
+                        Visibility="{Binding IsFilterOpen, Converter={StaticResource BoolToVis}}">
+                <ui:TextBox PlaceholderText="搜索剪贴板…"
+                            Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                            Margin="0,2,0,8" />
+                <Grid Height="28">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="0"
+                            Style="{StaticResource FilterChip}"
+                            Height="26"
+                            MinWidth="46"
+                            Padding="8,4,8,4"
+                            Margin="0,0,6,0"
+                            Command="{Binding ToggleFilterModeCommand}"
+                            ToolTip="切换类型 / 标签"
+                            Content="{Binding ModeToggleLabel}" />
+
+                    <Border Grid.Column="1" Width="1" Height="18" Margin="0,4,8,0"
+                            VerticalAlignment="Top"
+                            Background="{DynamicResource CardStrokeColorDefaultBrush}" />
+
+                    <ScrollViewer x:Name="FilterScrollViewer"
+                                  Grid.Column="2"
+                                  Height="28"
+                                  HorizontalScrollBarVisibility="Hidden"
+                                  VerticalScrollBarVisibility="Disabled"
+                                  CanContentScroll="False"
+                                  Focusable="False"
+                                  IsTabStop="False"
+                                  FocusVisualStyle="{x:Null}"
+                                  PanningMode="HorizontalOnly"
+                                  PreviewMouseWheel="FilterScrollViewer_PreviewMouseWheel">
+                        <Grid>
+                            <ItemsControl ItemsSource="{Binding TypeFilters}"
+                                          Visibility="{Binding IsTypeFilterMode, Converter={StaticResource BoolToVis}}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource FilterChip}"
+                                                Height="26"
+                                                Margin="0,0,6,0"
+                                                Command="{Binding DataContext.SelectTypeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="{Binding Label}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <StackPanel Orientation="Horizontal"
+                                        Visibility="{Binding IsTagFilterMode, Converter={StaticResource BoolToVis}}">
+                                <ItemsControl ItemsSource="{Binding TagFilters}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,6,0">
+                                                <Button Style="{StaticResource FilterChip}"
+                                                        Height="26"
+                                                        Margin="0"
+                                                        Command="{Binding DataContext.SelectTagCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Ellipse Width="7" Height="7" Fill="{Binding ColorBrush}" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding Label}" Margin="6,0,0,0" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource DeleteTagButton}"
+                                                        HorizontalAlignment="Right"
+                                                        VerticalAlignment="Top"
+                                                        Margin="0,-1,-3,0"
+                                                        Content="&#xE711;"
+                                                        ToolTip="删除标签"
+                                                        Command="{Binding DataContext.DeleteTagCommand, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
+                                                        CommandParameter="{Binding}"
+                                                        Visibility="{Binding ShowDelete, Converter={StaticResource BoolToVis}}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <ui:TextBox Width="86" Height="26" Margin="0,0,6,0" Padding="8,3,8,1"
+                                            VerticalContentAlignment="Center"
+                                            FontSize="12" PlaceholderText="新标签"
+                                            Text="{Binding NewTagName, UpdateSourceTrigger=PropertyChanged}"
+                                            Visibility="{Binding IsTagEditorOpen, Converter={StaticResource BoolToVis}}">
+                                    <ui:TextBox.InputBindings>
+                                        <KeyBinding Key="Enter" Command="{Binding SubmitNewTagCommand}" />
+                                    </ui:TextBox.InputBindings>
+                                </ui:TextBox>
+                                <Button Style="{StaticResource FilterChip}"
+                                        Width="28"
+                                        Height="26"
+                                        Margin="0"
+                                        Padding="0"
+                                        ToolTip="新建标签"
+                                        Command="{Binding CreateTagCommand}"
+                                        Content="+" />
+                            </StackPanel>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </StackPanel>
+
+            <TextBlock Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       FontSize="13" TextAlignment="Center"
+                       Foreground="{DynamicResource TextFillColorTertiaryBrush}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasVisibleItems}" Value="False">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+                复制一段文字或截个图，<LineBreak />这里就会出现卡片
+            </TextBlock>
+
+            <ListBox x:Name="ItemsList"
+                     Grid.Row="1"
+                     ItemsSource="{Binding ItemsView}"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     FocusVisualStyle="{x:Null}"
+                     Focusable="False"
+                     IsTabStop="False"
+                     HorizontalContentAlignment="Stretch"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.CanContentScroll="True"
+                     PreviewMouseWheel="VerticalScroll_PreviewMouseWheel"
+                     ScrollViewer.ScrollChanged="ItemsList_ScrollChanged"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling"
+                     VirtualizingPanel.ScrollUnit="Pixel"
+                     VirtualizingPanel.CacheLength="1,1"
+                     VirtualizingPanel.CacheLengthUnit="Page">
+
+                <ListBox.Template>
+                    <ControlTemplate TargetType="ListBox">
+                        <ScrollViewer Focusable="False"
+                                      CanContentScroll="True"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Auto">
+                            <ItemsPresenter />
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </ListBox.Template>
+
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="0" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                        <Setter Property="Focusable" Value="False" />
+                        <Setter Property="IsTabStop" Value="False" />
+                        <Setter Property="OverridesDefaultStyle" Value="True" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <ContentPresenter />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <EventSetter Event="Loaded" Handler="Item_Loaded" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+
+                <ListBox.GroupStyle>
+                    <GroupStyle>
+                        <GroupStyle.ContainerStyle>
+                            <Style TargetType="{x:Type GroupItem}">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="{x:Type GroupItem}">
+                                            <StackPanel>
+                                                <!-- 分组标题：整行点击折叠/展开（置顶组不响应、不显示 chevron） -->
+                                                <Grid Margin="6,12,8,6" Cursor="Hand"
+                                                      Background="Transparent"
+                                                      PreviewMouseLeftButtonDown="GroupHeader_MouseLeftButtonDown">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{Binding Name.ChevronGlyph}"
+                                                               Visibility="{Binding Name.IsPinned, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"
+                                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                               FontSize="9" VerticalAlignment="Center" Margin="0,0,5,0"
+                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                    <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}">
+                                                        <TextBlock.Text>
+                                                            <MultiBinding StringFormat="{}{0} · {1} 条">
+                                                                <Binding Path="Name.Title" Mode="OneWay" />
+                                                                <Binding Path="ItemCount" Mode="OneWay" />
+                                                            </MultiBinding>
+                                                        </TextBlock.Text>
+                                                    </TextBlock>
+                                                    <Border Grid.Column="2" Height="1" VerticalAlignment="Center"
+                                                            Background="{DynamicResource CardStrokeColorDefaultBrush}" />
+                                                </Grid>
+                                                <!-- 分组内条目：折叠时 Collapsed（不测量→不 realize），保住虚拟化 -->
+                                                <ItemsPresenter Visibility="{Binding Name.IsExpanded, Converter={StaticResource BoolToVis}}" />
+                                            </StackPanel>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </GroupStyle.ContainerStyle>
+                    </GroupStyle>
+                </ListBox.GroupStyle>
+
+            </ListBox>
+
+            <!-- 回到顶部：浮动圆形按钮，底部居中、半透明、悬停浮起；显隐由 code-behind 按滚动意图控制 -->
+            <Button x:Name="BackToTopButton"
+                    Grid.Row="1"
+                    HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                    Margin="0,0,0,16"
+                    Width="40" Height="40"
+                    Visibility="Collapsed" Opacity="0"
+                    Cursor="Hand" Focusable="False" IsTabStop="False"
+                    Click="BackToTop_Click"
+                    ToolTip="回到顶部">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="BtnBorder" CornerRadius="20"
+                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <TranslateTransform Y="0" />
+                            </Border.RenderTransform>
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="14" ShadowDepth="2" Direction="270" Color="Black" Opacity="0.18" />
+                            </Border.Effect>
+                            <TextBlock Text="&#xE70E;"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="14"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="BtnBorder" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TranslateTransform Y="-2" />
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter TargetName="BtnBorder" Property="Background" Value="{DynamicResource CardBackgroundFillColorSecondaryBrush}" />
+                                <Setter TargetName="BtnBorder" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="20" ShadowDepth="3" Direction="270" Color="Black" Opacity="0.26" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+        </Grid>
+
+        <Grid x:Name="SettingsContent"
+              Grid.Row="1"
+              Margin="6,0,0,8"
+              Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Button x:Name="SettingsBackButton"
+                        Style="{StaticResource SettingsBackButton}"
+                        Click="SettingsBack_Click"
+                        ToolTip="返回">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE72B;"
+                                   VerticalAlignment="Center"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   FontSize="11" />
+                        <TextBlock Text="返回"
+                                   Margin="7,0,0,0"
+                                   VerticalAlignment="Center"
+                                   FontSize="12" />
+                    </StackPanel>
+            </Button>
+
+            <ScrollViewer x:Name="SettingsScrollViewer"
+                          Grid.Row="1"
+                          VerticalScrollBarVisibility="Hidden"
+                          HorizontalScrollBarVisibility="Disabled"
+                          PreviewMouseWheel="VerticalScroll_PreviewMouseWheel"
+                          Focusable="False"
+                          IsTabStop="False"
+                          FocusVisualStyle="{x:Null}">
+                <Grid>
+                    <StackPanel x:Name="SettingsHomePanel">
+                    <!-- 实体动画安全区：ScrollViewer Padding 不会扩大卡片阴影的有效裁切区域。 -->
+                    <Border Height="10" IsHitTestVisible="False" />
+                    <Button Style="{StaticResource SettingsCategoryButton}"
+                            Tag="General"
+                            Click="SettingsCategory_Click">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="常规" FontSize="14" FontWeight="Medium"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="启动、窗口与基础行为" Margin="0,3,0,0" FontSize="11"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Text="&#xE76C;" VerticalAlignment="Center"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        </Grid>
+                    </Button>
+
+                    <Button Style="{StaticResource SettingsCategoryButton}"
+                            Tag="Storage"
+                            Click="SettingsCategory_Click">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="存储" FontSize="14" FontWeight="Medium"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="保存周期、容量与数据位置" Margin="0,3,0,0" FontSize="11"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Text="&#xE76C;" VerticalAlignment="Center"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        </Grid>
+                    </Button>
+
+                    <Button Style="{StaticResource SettingsCategoryButton}"
+                            Tag="Hotkeys"
+                            Click="SettingsCategory_Click">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="快捷键" FontSize="14" FontWeight="Medium"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="全局快捷键与冲突检测" Margin="0,3,0,0" FontSize="11"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Text="&#xE76C;" VerticalAlignment="Center"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        </Grid>
+                    </Button>
+
+                    <Button Style="{StaticResource SettingsCategoryButton}"
+                            Tag="Privacy"
+                            Click="SettingsCategory_Click">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="隐私" FontSize="14" FontWeight="Medium"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="暂停记录、应用排除与本地保护" Margin="0,3,0,0" FontSize="11"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Text="&#xE76C;" VerticalAlignment="Center"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        </Grid>
+                    </Button>
+
+                    <Button Style="{StaticResource SettingsCategoryButton}"
+                            Tag="Appearance"
+                            Click="SettingsCategory_Click">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="外观" FontSize="14" FontWeight="Medium"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="主题、强调色与语言" Margin="0,3,0,0" FontSize="11"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Text="&#xE76C;" VerticalAlignment="Center"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        </Grid>
+                    </Button>
+                    <Button Style="{StaticResource SettingsCategoryButton}"
+                            Tag="Backup"
+                            Click="SettingsCategory_Click">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="备份与恢复" FontSize="14" FontWeight="Medium"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Text="导出备份、恢复导入与数据安全" Margin="0,3,0,0" FontSize="11"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Text="&#xE77B;" VerticalAlignment="Center"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        </Grid>
+                    </Button>
+
+                    <!-- 版本号：设置首页最底部居中（弱色小字，单一真相在 csproj <Version>） -->
+                    <TextBlock x:Name="VersionText"
+                               HorizontalAlignment="Center"
+                               Margin="0,18,0,6"
+                               FontSize="11"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="SettingsDetailPanel" Visibility="Collapsed">
+                    <TextBlock x:Name="SettingsDetailTitle"
+                               Text="常规"
+                               Margin="12,0,14,0"
+                               FontFamily="Segoe UI Variable Display"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <TextBlock x:Name="SettingsDetailDescription"
+                               Margin="12,6,14,18"
+                               TextWrapping="Wrap"
+                               FontSize="13"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                    <!-- 常规 -->
+                    <StackPanel x:Name="SettingsGeneralBody">
+                        <TextBlock Text="粘贴与捕获" Style="{StaticResource SettingsGroupHeader}" />
+                        <Border Style="{StaticResource SettingsGroupCard}">
+                            <StackPanel>
+                                <controls:SettingsRowControl
+                                    Title="点击卡片后自动粘贴"
+                                    Description="复用时自动粘贴回原窗口，失败则仅复制">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <ui:ToggleSwitch VerticalAlignment="Center" IsChecked="{Binding AutoPasteOnUse}" />
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                                <Border Style="{StaticResource SettingsRowDivider}" />
+                                <controls:SettingsRowControl
+                                    Title="合并重复内容"
+                                    Description="复制相同内容时刷新到最前，而不是新增一条">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <ui:ToggleSwitch VerticalAlignment="Center" IsChecked="{Binding MergeDuplicates}" />
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="识别" Style="{StaticResource SettingsGroupHeader}" />
+                        <Border Style="{StaticResource SettingsGroupCard}">
+                            <StackPanel>
+                                <controls:SettingsRowControl
+                                    Title="图片文字识别（OCR）"
+                                    Description="在本地识别截图中的文字，使其可被搜索（不联网）">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <ui:ToggleSwitch VerticalAlignment="Center" IsChecked="{Binding OcrEnabled}" />
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="启动" Style="{StaticResource SettingsGroupHeader}" />
+                        <Border Style="{StaticResource SettingsGroupCard}">
+                            <StackPanel>
+                                <controls:SettingsRowControl
+                                    Title="开机自启动"
+                                    Description="登录 Windows 后自动在后台运行 Clipora"
+                                    ErrorText="{Binding AutoStartError}">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <ui:ToggleSwitch VerticalAlignment="Center" IsChecked="{Binding AutoStart}" />
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                                <Border Style="{StaticResource SettingsRowDivider}" />
+                                <controls:SettingsRowControl
+                                    Title="静默启动"
+                                    Description="开机自启时不弹出主面板，仅在托盘后台记录。需先开启「开机自启动」">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <ui:ToggleSwitch VerticalAlignment="Center" IsChecked="{Binding SilentStart}" IsEnabled="{Binding AutoStart}" />
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="窗口行为" Style="{StaticResource SettingsGroupHeader}" />
+                        <Border Style="{StaticResource SettingsGroupCard}">
+                            <StackPanel>
+                                <controls:SettingsRowControl
+                                    Title="在任务栏显示"
+                                    Description="主面板打开时在任务栏显示程序按钮，关闭则仅通过托盘图标访问">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <ui:ToggleSwitch VerticalAlignment="Center" IsChecked="{Binding ShowInTaskbar}" />
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                                <Border Style="{StaticResource SettingsRowDivider}" />
+                                <controls:SettingsRowControl
+                                    Title="最小化到"
+                                    Description="点最小化按钮后收起的位置">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <ComboBox Style="{StaticResource SettingsSelector}" SelectedValuePath="Tag" SelectedValue="{Binding MinimizeTo}">
+                                            <ComboBoxItem Style="{StaticResource SettingsSelectorItem}" Content="贴边悬浮球" Tag="{x:Static models:MinimizeBehavior.FloatingBall}" />
+                                            <ComboBoxItem Style="{StaticResource SettingsSelectorItem}" Content="系统托盘" Tag="{x:Static models:MinimizeBehavior.Tray}" />
+                                        </ComboBox>
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                                <Border Style="{StaticResource SettingsRowDivider}" />
+                                <controls:SettingsRowControl
+                                    Title="关闭按钮"
+                                    Description="点标题栏关闭按钮时的行为">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <ComboBox Style="{StaticResource SettingsSelector}" SelectedValuePath="Tag" SelectedValue="{Binding CloseTo}">
+                                            <ComboBoxItem Style="{StaticResource SettingsSelectorItem}" Content="收起到托盘" Tag="{x:Static models:CloseBehavior.Tray}" />
+                                            <ComboBoxItem Style="{StaticResource SettingsSelectorItem}" Content="贴边悬浮球" Tag="{x:Static models:CloseBehavior.FloatingBall}" />
+                                            <ComboBoxItem Style="{StaticResource SettingsSelectorItem}" Content="退出应用" Tag="{x:Static models:CloseBehavior.Exit}" />
+                                        </ComboBox>
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="浏览" Style="{StaticResource SettingsGroupHeader}" />
+                        <Border Style="{StaticResource SettingsGroupCard}">
+                            <StackPanel>
+                                <controls:SettingsRowControl
+                                    Title="回到顶部按钮"
+                                    Description="列表向下滚动后再向上滚动时，浮出快速回到顶部的按钮">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <ui:ToggleSwitch VerticalAlignment="Center" IsChecked="{Binding ShowBackToTop}" />
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- 存储 -->
+                    <StackPanel x:Name="SettingsStorageBody" Visibility="Collapsed">
+                        <TextBlock Text="保存与容量" Style="{StaticResource SettingsGroupHeader}" />
+                        <Border Style="{StaticResource SettingsGroupCard}">
+                            <StackPanel>
+                                <controls:SettingsRowControl
+                                    Title="保存天数"
+                                    Description="将在下次自动清理时生效，置顶项不受影响">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <ComboBox Style="{StaticResource SettingsSelector}"
+                                                  SelectedValuePath="Tag" SelectedValue="{Binding RetentionDays, Mode=TwoWay}">
+                                            <ComboBoxItem Style="{StaticResource SettingsSelectorItem}" Content="1 天" Tag="1" />
+                                            <ComboBoxItem Style="{StaticResource SettingsSelectorItem}" Content="3 天" Tag="3" />
+                                            <ComboBoxItem Style="{StaticResource SettingsSelectorItem}" Content="7 天" Tag="7" />
+                                            <ComboBoxItem Style="{StaticResource SettingsSelectorItem}" Content="30 天" Tag="30" />
+                                            <ComboBoxItem Style="{StaticResource SettingsSelectorItem}" Content="永久保存" Tag="0" />
+                                        </ComboBox>
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                                <Border Style="{StaticResource SettingsRowDivider}" />
+                                <controls:SettingsRowControl
+                                    Title="单条大小上限"
+                                    Description="仅影响之后存入的内容；超过上限会提示且不保存">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <ui:NumberBox Width="104" Minimum="1" Maximum="1024" SmallChange="1"
+                                                          Value="{Binding MaxItemMegabytes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          SpinButtonPlacementMode="Compact" ClearButtonEnabled="False" />
+                                            <TextBlock Text="MB" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="数据位置与维护" Style="{StaticResource SettingsGroupHeader}" />
+                        <Border Style="{StaticResource SettingsGroupCard}">
+                            <StackPanel>
+                                <ContentControl Style="{StaticResource SettingsRow}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,12,0" VerticalAlignment="Center">
+                                            <TextBlock Text="数据目录" Style="{StaticResource SettingsRowTitle}" />
+                                            <TextBlock Text="{Binding DataDirectory}" Style="{StaticResource SettingsRowValue}"
+                                                       HorizontalAlignment="Left" Margin="0,3,0,0"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding DataDirectory}" />
+                                            <TextBlock Text="{Binding DataDirectoryMigrationDescription}" Style="{StaticResource SettingsRowDesc}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Style="{StaticResource SettingsSecondaryButton}"
+                                                Content="更改…"
+                                                IsEnabled="{Binding CanChangeDataDirectory}"
+                                                Click="ChangeDataDirectory_Click" />
+                                    </Grid>
+                                </ContentControl>
+                                <Border Style="{StaticResource SettingsRowDivider}" />
+                                <ContentControl Style="{StaticResource SettingsRow}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,12,0" VerticalAlignment="Center">
+                                            <TextBlock Text="清空回收站" Style="{StaticResource SettingsRowTitle}" />
+                                            <TextBlock Text="永久删除已移入回收站的条目，不可恢复" Style="{StaticResource SettingsRowError}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Style="{StaticResource SettingsDangerButton}"
+                                                Content="清空" IsEnabled="False" />
+                                    </Grid>
+                                </ContentControl>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- 隐私：暂停记录 + 应用排除名单（M4.4.2a） -->
+                    <StackPanel x:Name="SettingsPrivacyBody" Visibility="Collapsed">
+                        <TextBlock Text="记录" Style="{StaticResource SettingsGroupHeader}" />
+                        <Border Style="{StaticResource SettingsGroupCard}">
+                            <StackPanel>
+                                <controls:SettingsRowControl
+                                    Title="暂停记录"
+                                    Description="暂停后不再自动记录剪贴板内容（手动拖入仍可保存）">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <ui:ToggleSwitch VerticalAlignment="Center" IsChecked="{Binding Paused}" />
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="应用排除" Style="{StaticResource SettingsGroupHeader}" />
+                        <Border Style="{StaticResource SettingsGroupCard}">
+                            <StackPanel>
+                                <TextBlock Text="从这些应用复制的内容将不会被记录"
+                                           Style="{StaticResource SettingsRowDesc}"
+                                           Margin="8,4,8,2" />
+                                <ItemsControl ItemsSource="{Binding ExcludedApps}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel>
+                                                <ContentControl Style="{StaticResource SettingsRow}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Margin="0,0,12,0" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding DisplayName}" Style="{StaticResource SettingsRowTitle}" />
+                                                            <TextBlock Text="{Binding ProcessName}" Style="{StaticResource SettingsRowDesc}" />
+                                                        </StackPanel>
+                                                        <Button Grid.Column="1"
+                                                                Style="{StaticResource DeleteTagButton}"
+                                                                Width="16" Height="16"
+                                                                ToolTip="移除排除"
+                                                                Content="&#xE711;"
+                                                                Click="RemoveExclusion_Click"
+                                                                Tag="{Binding}" />
+                                                    </Grid>
+                                                </ContentControl>
+                                                <Border Style="{StaticResource SettingsRowDivider}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                    <!-- 空状态占位 -->
+                                    <ItemsControl.Style>
+                                        <Style TargetType="ItemsControl">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ExcludedApps.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ItemsControl.Style>
+                                </ItemsControl>
+                                <TextBlock Text="尚未排除任何应用"
+                                           Margin="8,6,8,4"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ExcludedApps.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <Button Style="{StaticResource SettingsSecondaryButton}"
+                                        Content="添加应用…"
+                                        HorizontalAlignment="Left"
+                                        Margin="8,6,0,8"
+                                        Click="AddExcludedApp_Click" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 不出现加密行（4.4.3 待定） -->
+                    </StackPanel>
+
+                    <!-- 快捷键（4.5.2b）：三行可重绑热键 -->
+                    <StackPanel x:Name="SettingsHotkeysBody" Visibility="Collapsed">
+                        <TextBlock Text="全局快捷键" Style="{StaticResource SettingsGroupHeader}" />
+                        <Border Style="{StaticResource SettingsGroupCard}">
+                            <StackPanel>
+                                <!-- 打开面板 -->
+                                <controls:SettingsRowControl
+                                    Title="打开面板"
+                                    Description="唤出或隐藏 Clipora 主面板"
+                                    ErrorText="{Binding HotkeyOpenPanelError}">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border CornerRadius="5"
+                                                    Padding="9,3"
+                                                    Background="{DynamicResource ControlFillColorSecondaryBrush}">
+                                                <TextBlock Text="{Binding HotkeyOpenPanelDisplay}"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            </Border>
+                                            <Button x:Name="HotkeyOpenPanelChangeBtn"
+                                                    Style="{StaticResource SettingsSecondaryButton}"
+                                                    Content="更改"
+                                                    Height="28"
+                                                    Padding="8,0"
+                                                    Margin="8,0,6,0"
+                                                    Click="HotkeyChange_Click" Tag="OpenPanel" />
+                                            <Button Style="{DynamicResource CardIconButton}"
+                                                    Width="26" Height="24"
+                                                    ToolTip="恢复默认 Alt+V"
+                                                    Click="HotkeyReset_Click" Tag="OpenPanel"
+                                                    Content="&#xE777;" />
+                                        </StackPanel>
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                                <Border Style="{StaticResource SettingsRowDivider}" />
+                                <!-- 纯文本粘贴 -->
+                                <controls:SettingsRowControl
+                                    Title="纯文本粘贴"
+                                    Description="将当前剪贴板内容以纯文本粘贴到前台窗口"
+                                    ErrorText="{Binding HotkeyPastePlainError}">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border CornerRadius="5"
+                                                    Padding="9,3"
+                                                    Background="{DynamicResource ControlFillColorSecondaryBrush}">
+                                                <TextBlock Text="{Binding HotkeyPastePlainDisplay}"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            </Border>
+                                            <Button x:Name="HotkeyPastePlainChangeBtn"
+                                                    Style="{StaticResource SettingsSecondaryButton}"
+                                                    Content="更改"
+                                                    Height="28"
+                                                    Padding="8,0"
+                                                    Margin="8,0,6,0"
+                                                    Click="HotkeyChange_Click" Tag="PastePlain" />
+                                            <Button Style="{DynamicResource CardIconButton}"
+                                                    Width="26" Height="24"
+                                                    ToolTip="恢复默认 Ctrl+Shift+V"
+                                                    Click="HotkeyReset_Click" Tag="PastePlain"
+                                                    Content="&#xE777;" />
+                                        </StackPanel>
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                                <Border Style="{StaticResource SettingsRowDivider}" />
+                                <!-- 顺序粘贴 -->
+                                <controls:SettingsRowControl
+                                    Title="顺序粘贴"
+                                    Description="即将支持（已绑定快捷键待启用）"
+                                    ErrorText="{Binding HotkeySequentialPasteError}">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border CornerRadius="5"
+                                                    Padding="9,3"
+                                                    Background="{DynamicResource ControlFillColorSecondaryBrush}">
+                                                <TextBlock Text="{Binding HotkeySequentialPasteDisplay}"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            </Border>
+                                            <Button x:Name="HotkeySequentialPasteChangeBtn"
+                                                    Style="{StaticResource SettingsSecondaryButton}"
+                                                    Content="更改"
+                                                    Height="28"
+                                                    Padding="8,0"
+                                                    Margin="8,0,6,0"
+                                                    Click="HotkeyChange_Click" Tag="SequentialPaste" />
+                                            <Button Style="{DynamicResource CardIconButton}"
+                                                    Width="26" Height="24"
+                                                    ToolTip="恢复默认（清空绑定）"
+                                                    Click="HotkeyReset_Click" Tag="SequentialPaste"
+                                                    Content="&#xE777;" />
+                                        </StackPanel>
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- M5.2 备份与恢复 -->
+                    <StackPanel x:Name="SettingsBackupBody" Visibility="Collapsed">
+                        <TextBlock Text="备份" Style="{StaticResource SettingsGroupHeader}" />
+                        <Border Style="{StaticResource SettingsGroupCard}">
+                            <StackPanel>
+                                <controls:SettingsRowControl
+                                    Title="导出备份"
+                                    Description="将当前全部历史导出为 .clpbak 归档文件">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <Button Content="导出" Style="{StaticResource SettingsSecondaryButton}"
+                                                Click="ExportBackup_Click" VerticalAlignment="Center" />
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="恢复" Style="{StaticResource SettingsGroupHeader}" />
+                        <Border Style="{StaticResource SettingsGroupCard}">
+                            <StackPanel>
+                                <controls:SettingsRowControl
+                                    Title="恢复备份"
+                                    Description="选择 .clpbak 归档，按内容去重合并到当前历史（不删除现有内容）">
+                                    <controls:SettingsRowControl.RightContent>
+                                        <Button Content="恢复" Style="{StaticResource SettingsSecondaryButton}"
+                                                Click="ImportBackup_Click" VerticalAlignment="Center" />
+                                    </controls:SettingsRowControl.RightContent>
+                                </controls:SettingsRowControl>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- M5.3 外观设置 -->
+                    <StackPanel x:Name="SettingsAppearanceBody" Visibility="Collapsed">
+                        <TextBlock Text="界面主题" Style="{StaticResource SettingsGroupHeader}" />
+                        <Border Style="{StaticResource SettingsGroupCard}">
+                            <ContentControl Style="{StaticResource SettingsRow}">
+                                <UniformGrid Columns="{Binding ActualWidth, ElementName=SettingsScrollViewer, Converter={StaticResource AppearanceColumnCount}}">
+                                    <Button Content="Fluent" Click="VisualThemeFluent_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource AppearanceOptionButton}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsFluentSelected}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorSecondaryBrush}" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                                                        <Setter Property="Tag" Value="selected" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="液态玻璃" Click="VisualThemeLiquidGlass_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource AppearanceOptionButton}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsLiquidGlassSelected}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorSecondaryBrush}" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                                                        <Setter Property="Tag" Value="selected" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </UniformGrid>
+                            </ContentControl>
+                        </Border>
+
+                        <TextBlock Text="界面颜色" Style="{StaticResource SettingsGroupHeader}" />
+                        <Border Style="{StaticResource SettingsGroupCard}">
+                            <ContentControl Style="{StaticResource SettingsRow}">
+                                <UniformGrid Columns="{Binding ActualWidth, ElementName=SettingsScrollViewer, Converter={StaticResource AppearanceColumnCount}}">
+                                    <Button Content="跟随系统" Click="ColorModeSystem_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource AppearanceOptionButton}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsColorSystemSelected}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorSecondaryBrush}" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                                                        <Setter Property="Tag" Value="selected" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="浅色" Click="ColorModeLight_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource AppearanceOptionButton}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsColorLightSelected}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorSecondaryBrush}" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                                                        <Setter Property="Tag" Value="selected" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="深色" Click="ColorModeDark_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource AppearanceOptionButton}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsColorDarkSelected}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorSecondaryBrush}" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                                                        <Setter Property="Tag" Value="selected" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </UniformGrid>
+                            </ContentControl>
+                        </Border>
+
+                        <StackPanel Visibility="{Binding IsCustomBackgroundSectionVisible, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="自定义背景" Style="{StaticResource SettingsGroupHeader}" />
+                            <Border Style="{StaticResource SettingsGroupCard}">
+                                <StackPanel>
+                                    <!-- 这一行不套 SettingsRow 的整行悬停高亮：换背景/清除按钮各自只在自身边界内悬停。
+                                         仅沿用 SettingsRow 的 8,9,8,9 内边距，不引入整行 hover。 -->
+                                    <Grid Margin="8,9,8,9">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                Content="{Binding CustomBackgroundChooseText}"
+                                                Style="{StaticResource CustomBackgroundPickerButton}"
+                                                Click="ChooseCustomBackground_Click" />
+                                        <Button Grid.Column="1"
+                                                Content="&#xE711;"
+                                                Style="{StaticResource CustomBackgroundClearButton}"
+                                                ToolTip="清除背景"
+                                                Click="ClearCustomBackground_Click"
+                                                Visibility="{Binding HasCustomBackground, Converter={StaticResource BoolToVis}}" />
+                                    </Grid>
+
+                                    <TextBlock Text="{Binding CustomBackgroundFileName}"
+                                               Style="{StaticResource SettingsRowDesc}"
+                                               Margin="12,-2,12,10"
+                                               TextTrimming="CharacterEllipsis"
+                                               Visibility="{Binding HasCustomBackground, Converter={StaticResource BoolToVis}}" />
+
+                                    <Border Style="{StaticResource SettingsRowDivider}"
+                                            Visibility="{Binding HasCustomBackground, Converter={StaticResource BoolToVis}}" />
+                                    <ContentControl Style="{StaticResource SettingsRow}"
+                                                    Visibility="{Binding HasCustomBackground, Converter={StaticResource BoolToVis}}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="42" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="背景透明度"
+                                                       Style="{StaticResource SettingsRowTitle}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,12,0" />
+                                            <Slider Grid.Column="1"
+                                                    Minimum="0"
+                                                    Maximum="100"
+                                                    Style="{DynamicResource SettingsSlider}"
+                                                    Value="{Binding CustomBackgroundOpacitySlider, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding CustomBackgroundOpacityText}"
+                                                       Style="{StaticResource SettingsRowValue}"
+                                                       TextAlignment="Right"
+                                                       HorizontalAlignment="Right" />
+                                        </Grid>
+                                    </ContentControl>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <StackPanel Visibility="{Binding IsLiquidGlassTransparencySectionVisible, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="玻璃通透度" Style="{StaticResource SettingsGroupHeader}" />
+                            <Border Style="{StaticResource SettingsGroupCard}">
+                                <StackPanel>
+                                    <ContentControl Style="{StaticResource SettingsRow}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="42" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="玻璃通透度"
+                                                       Style="{StaticResource SettingsRowTitle}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,12,0" />
+                                            <Slider Grid.Column="1"
+                                                    Minimum="0"
+                                                    Maximum="100"
+                                                    Style="{DynamicResource SettingsSlider}"
+                                                    Value="{Binding LiquidGlassTransparencySlider, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding LiquidGlassTransparencyText}"
+                                                       Style="{StaticResource SettingsRowValue}"
+                                                       TextAlignment="Right"
+                                                       HorizontalAlignment="Right" />
+                                        </Grid>
+                                    </ContentControl>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- 其余分类暂用占位卡 -->
+                    <Border x:Name="SettingsGenericBody"
+                            Visibility="Collapsed"
+                            Margin="6,2,14,4"
+                            Style="{StaticResource CliporaCard}">
+                        <TextBlock Text="该分类的具体选项将在后续小步接入。"
+                                   TextWrapping="Wrap"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                    </Border>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
+
+        <Border Grid.Row="1"
+                Panel.ZIndex="30"
+                Margin="6,0,14,8"
+                Padding="12"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                CornerRadius="8"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                Visibility="{Binding IsTagManagerOpen, Converter={StaticResource BoolToVis}}">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="20" ShadowDepth="3" Direction="270" Color="#000000" Opacity="0.16" />
+            </Border.Effect>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="2,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="标签管理"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               FontFamily="Segoe UI Variable Display"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <Button Grid.Column="1"
+                            Style="{DynamicResource CardIconButton}"
+                            Command="{Binding CloseTagManagerCommand}"
+                            ToolTip="关闭"
+                            Content="&#xE711;" />
+                </Grid>
+
+                <Grid Grid.Row="1" Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:TextBox Grid.Column="0"
+                                Height="30"
+                                Padding="9,4,9,2"
+                                VerticalContentAlignment="Center"
+                                FontSize="12"
+                                PlaceholderText="新标签名称"
+                                Text="{Binding NewTagName, UpdateSourceTrigger=PropertyChanged}">
+                        <ui:TextBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding SubmitNewTagCommand}" />
+                        </ui:TextBox.InputBindings>
+                    </ui:TextBox>
+                    <Button Grid.Column="1"
+                            Height="30"
+                            Margin="8,0,0,0"
+                            Padding="10,0"
+                            Style="{StaticResource FilterChip}"
+                            Command="{Binding SubmitNewTagCommand}"
+                            Content="新建" />
+                </Grid>
+
+                <TextBlock Grid.Row="2"
+                           Text="还没有标签"
+                           Margin="2,12,0,16"
+                           FontSize="12"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                           Visibility="{Binding HasManagedTags, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
+
+                <ScrollViewer x:Name="TagManagerScrollViewer"
+                              Grid.Row="3"
+                              VerticalScrollBarVisibility="Hidden"
+                              HorizontalScrollBarVisibility="Disabled"
+                              PreviewMouseWheel="VerticalScroll_PreviewMouseWheel"
+                              Visibility="{Binding HasManagedTags, Converter={StaticResource BoolToVis}}">
+                    <ItemsControl ItemsSource="{Binding ManagedTags}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border CornerRadius="8"
+                                        Padding="8"
+                                        Margin="0,0,0,8"
+                                        Background="{DynamicResource ControlFillColorSecondaryBrush}">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <Grid Grid.Row="0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <Ellipse Width="8"
+                                                     Height="8"
+                                                     Fill="{Binding ColorBrush}"
+                                                     VerticalAlignment="Center"
+                                                     Margin="0,0,8,0" />
+
+                                            <ui:TextBox Grid.Column="1"
+                                                        Height="28"
+                                                        MinWidth="120"
+                                                        Padding="8,3,8,1"
+                                                        VerticalContentAlignment="Center"
+                                                        FontSize="12"
+                                                        Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                        LostFocus="TagNameTextBox_LostFocus">
+                                                <ui:TextBox.InputBindings>
+                                                    <KeyBinding Key="Enter" Command="{Binding CommitRenameCommand}" />
+                                                </ui:TextBox.InputBindings>
+                                            </ui:TextBox>
+
+                                            <StackPanel Grid.Column="2"
+                                                        Orientation="Horizontal"
+                                                        Margin="8,0,0,0">
+                                                <Button Style="{DynamicResource CardIconButton}"
+                                                        ToolTip="上移"
+                                                        Content="&#xE70E;"
+                                                        Command="{Binding MoveUpCommand}"
+                                                        IsEnabled="{Binding CanMoveUp}" />
+                                                <Button Style="{DynamicResource CardIconButton}"
+                                                        ToolTip="下移"
+                                                        Content="&#xE70D;"
+                                                        Command="{Binding MoveDownCommand}"
+                                                        IsEnabled="{Binding CanMoveDown}" />
+                                                <Button Style="{DynamicResource CardIconButton}"
+                                                        ToolTip="删除"
+                                                        Content="&#xE74D;"
+                                                        Command="{Binding DeleteCommand}" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <ItemsControl Grid.Row="1"
+                                                      ItemsSource="{Binding ColorOptions}"
+                                                      Margin="16,8,0,0">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Style="{StaticResource ColorSwatchButton}"
+                                                            Command="{Binding DataContext.SelectColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            ToolTip="{Binding Color}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- 文字选取覆盖层：覆盖卡片列表区域，仅 X 按钮关闭，与标签管理弹窗同架构。 -->
+        <Border Grid.Row="1"
+                Panel.ZIndex="35"
+                Margin="6,0,14,8"
+                Padding="12"
+                CornerRadius="8"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                Visibility="{Binding IsSelectionPopupOpen, Converter={StaticResource BoolToVis}}">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="20" ShadowDepth="3" Direction="270" Color="#000000" Opacity="0.16" />
+            </Border.Effect>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- 标题行：X 按钮靠右 -->
+                <Grid Grid.Row="0" Margin="0,0,0,8">
+                    <Button HorizontalAlignment="Right"
+                            Style="{DynamicResource CardIconButton}"
+                            Command="{Binding CloseSelectionPopupCommand}"
+                            ToolTip="关闭"
+                            Content="&#xE711;" />
+                </Grid>
+
+                <!-- 文字内容（ScrollViewer） -->
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <TextBox IsReadOnly="True"
+                             TextWrapping="Wrap"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             Text="{Binding SelectionPopupText, Mode=OneWay}"
+                             Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                             FontSize="13">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox">
+                                <Setter Property="FontFamily" Value="Segoe UI Variable Text, Microsoft YaHei UI" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSelectionPopupCode}" Value="True">
+                                        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
+                                        <Setter Property="FontSize" Value="12" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+                </ScrollViewer>
+
+                <!-- 字数统计 -->
+                <TextBlock Grid.Row="2"
+                           Margin="0,8,0,0"
+                           HorizontalAlignment="Right"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                           Text="{Binding SelectionPopupCharCount}" />
+            </Grid>
+        </Border>
+
+        <Border x:Name="ExternalDropOverlay"
+                Grid.RowSpan="2"
+                Panel.ZIndex="200"
+                Margin="12"
+                CornerRadius="12"
+                BorderThickness="1.5"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                IsHitTestVisible="False"
+                Visibility="Collapsed"
+                Opacity="0">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="&#xE8B7;"
+                           HorizontalAlignment="Center"
+                           FontFamily="Segoe Fluent Icons"
+                           FontSize="28"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock Text="释放以保存到 Clipora"
+                           Margin="0,10,0,0"
+                           FontFamily="Segoe UI Variable Display"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                <TextBlock Text="支持文件、文字、图片与富文本"
+                           Margin="0,4,0,0"
+                           HorizontalAlignment="Center"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+            </StackPanel>
+        </Border>
+
+        <!-- 瞬时提示条：面板底部居中，淡入→停留 4s→淡出。Z=190 在列表(0)之上、拖入浮层(200)之下。 -->
+        <Border x:Name="OverSizedHint"
+                Grid.RowSpan="2"
+                Panel.ZIndex="190"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Bottom"
+                Margin="0,0,0,16"
+                Padding="16,12"
+                CornerRadius="12"
+                BorderThickness="1.5"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                IsHitTestVisible="False"
+                Visibility="Collapsed"
+                Opacity="0">
+            <StackPanel>
+                <TextBlock x:Name="OverSizedHintTitle"
+                           FontFamily="Segoe UI Variable Display"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                    <Run FontFamily="Segoe Fluent Icons" Text="&#xE7BA;" />
+                    <Run x:Name="OverSizedHintTitleText" Text="  内容超过上限，未保存" />
+                </TextBlock>
+                <TextBlock x:Name="OverSizedHintDetail"
+                           Margin="0,4,0,0"
+                           FontSize="11"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+            </StackPanel>
+        </Border>
+
+        <Popup x:Name="ImagePreviewPopup"
+               AllowsTransparency="True"
+               Placement="Mouse"
+               HorizontalOffset="20" VerticalOffset="10"
+               IsHitTestVisible="False">
+            <Border x:Name="ImagePreviewBorder"
+                    CornerRadius="10"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    MaxWidth="400" MaxHeight="400"
+                    Opacity="0">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="20" ShadowDepth="4"
+                                      Opacity="0.25" Direction="270" />
+                </Border.Effect>
+                <Image x:Name="PreviewFullImage"
+                       Stretch="Uniform"
+                       StretchDirection="Both"
+                       Margin="9" />
+            </Border>
+        </Popup>
+
+        <ui:ContentDialogHost x:Name="DialogHost"
+                              Grid.RowSpan="2"
+                              Panel.ZIndex="1000"
+                              IsDisableSiblingsEnabled="True" />
+    </Grid>
+</ui:FluentWindow>

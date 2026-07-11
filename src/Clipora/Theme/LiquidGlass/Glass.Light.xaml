@@ -1,0 +1,48 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 液态玻璃 · 浅色变体（M8 Phase C）。
+         覆盖 WPF-UI 画刷键为半透明玻璃值；全 UI 已 DynamicResource 引用，故整体跟随。
+         Acrylic 窗口背景由 ThemeService 设置，本字典负责其上的表面 / 控件 / 描边。
+         玻璃亮边 = CardStrokeColorDefaultBrush 用竖向渐变（顶亮→底淡）做 rim，纯画刷、不改模板。
+         禁止改 Theme/Styles.xaml / Tokens.xaml（Fluent 基线）。 -->
+
+    <!-- 窗口 / 应用底：透明，让 Acrylic 透出（强玻璃通透） -->
+    <SolidColorBrush x:Key="ApplicationBackgroundBrush" Color="#00FFFFFF" />
+
+    <!-- 卡片表面（半透明白） -->
+    <SolidColorBrush x:Key="CardBackgroundFillColorDefaultBrush" Color="#99FFFFFF" />
+    <SolidColorBrush x:Key="CardBackgroundFillColorSecondaryBrush" Color="#80FFFFFF" />
+
+    <!-- 玻璃亮边 rim：竖向渐变（顶亮→底淡） -->
+    <LinearGradientBrush x:Key="CardStrokeColorDefaultBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+        <GradientStop Offset="0" Color="#F2FFFFFF" />
+        <GradientStop Offset="1" Color="#4DFFFFFF" />
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="CardStrokeColorDefaultSolidBrush" Color="#CCFFFFFF" />
+
+    <!-- chips / 控件填充：常态 / 悬停（更亮）/ 按下（更淡）/ 禁用 -->
+    <SolidColorBrush x:Key="ControlFillColorDefaultBrush" Color="#73FFFFFF" />
+    <SolidColorBrush x:Key="ControlFillColorSecondaryBrush" Color="#8CFFFFFF" />
+    <SolidColorBrush x:Key="ControlFillColorTertiaryBrush" Color="#59FFFFFF" />
+    <SolidColorBrush x:Key="ControlFillColorDisabledBrush" Color="#2EFFFFFF" />
+
+    <!-- 按钮 / 菜单项 hover 的 Subtle 填充 -->
+    <SolidColorBrush x:Key="SubtleFillColorSecondaryBrush" Color="#38FFFFFF" />
+    <SolidColorBrush x:Key="SubtleFillColorTertiaryBrush" Color="#24FFFFFF" />
+
+    <!-- 托盘菜单 / 对话框等实体表面：磨砂但更不透明，保证可读 -->
+    <SolidColorBrush x:Key="SolidBackgroundFillColorBaseBrush" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="SolidBackgroundFillColorSecondaryBrush" Color="#CCFFFFFF" />
+    <SolidColorBrush x:Key="SolidBackgroundFillColorTertiaryBrush" Color="#BFFFFFFF" />
+
+    <!-- WPF-UI 分层表面 -->
+    <SolidColorBrush x:Key="LayerFillColorDefaultBrush" Color="#87FFFFFF" />
+    <SolidColorBrush x:Key="LayerFillColorAltBrush" Color="#59FFFFFF" />
+
+    <!-- 控件描边：轻亮玻璃边 -->
+    <SolidColorBrush x:Key="ControlStrokeColorDefaultBrush" Color="#59FFFFFF" />
+    <SolidColorBrush x:Key="ControlStrokeColorSecondaryBrush" Color="#2EFFFFFF" />
+
+</ResourceDictionary>

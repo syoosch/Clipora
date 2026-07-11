@@ -1,0 +1,50 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <ApplicationIcon>Assets\clipora.ico</ApplicationIcon>
+    <!-- 版本规则：SemVer MAJOR.MINOR.PATCH；0.x = 1.0 前公开预览；首个对外试用版 = 0.1.0。
+         0.1.1：图片缩略图修复 + 卸载残留 exe 修复 + 颜色模式/系统主题监听修复 + 架构重构第一批。
+         0.2.0：液态玻璃外观主题（第二套皮肤 + 热切换）+ Fluent 自定义背景 + 悬浮球拖入即存
+                + 图片文件缩略图预览；修复外部拖入浮层卡死、跨零点日期分组、文件名保后缀省略等。
+         0.3.0：液态玻璃通透度滑条 + 全窗口遮罩 + 滑条性能优化 + 闪退修复
+                + 移除便签主题入口 + 协作流程分级。
+         0.4.0：卡片操作按钮（文字选取/系统默认打开）+ SettingsRowControl info 图标
+                + FileNameTrimming 扩展名截断修复 + 备份标题省略号修复。
+         0.4.1：图片卡片悬停预览闪烁修复 — 虚假 MouseLeave 检测
+                + GetCursorPos 轮询 + Window.Deactivated 关闭。
+         0.4.2：图片预览 200% DPI 过早关闭修复（安全区边界 DIP/物理像素不匹配）
+                + 移除 Deactivated 关闭预览 + 预览关闭容差调优。 -->
+    <Version>0.4.2</Version>
+    <!-- 发布元数据：决定 exe「详细信息」属性页与安装包显示信息（M6.3a） -->
+    <Product>Clipora</Product>
+    <AssemblyTitle>Clipora</AssemblyTitle>
+    <Company>Clipora</Company>
+    <Authors>Clipora</Authors>
+    <Description>Clipora — 本地 Windows 剪贴板历史工具（纯本地，不联网）</Description>
+    <Copyright>Copyright © 2026 Clipora</Copyright>
+    <FileVersion>0.4.2.0</FileVersion>
+    <AssemblyVersion>0.4.2.0</AssemblyVersion>
+    <InformationalVersion>0.4.2</InformationalVersion>
+    <!-- 不把 git 提交哈希追加进信息版本号，使属性页「产品版本」显示干净的 0.4.0 -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="H.NotifyIcon.Wpf" Version="2.4.1" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\clipora-icon.png" />
+    <Resource Include="Assets\clipora.ico" />
+  </ItemGroup>
+
+</Project>
