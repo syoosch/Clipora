@@ -1,10 +1,21 @@
+<p align="center">
+  <img src="src/Clipora/Assets/clipora-icon.png" width="96" alt="Clipora icon">
+</p>
+
 # Clipora
+
+[![Latest release](https://img.shields.io/github/v/release/syoosch/Clipora?display_name=tag)](https://github.com/syoosch/Clipora/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/syoosch/Clipora/total)](https://github.com/syoosch/Clipora/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)](#-requirements)
 
 **English** | [简体中文](README.zh-CN.md)
 
 > A local clipboard-history tool for Windows — automatically records what you copy so you can find and reuse it anytime. **Runs fully offline; your data never leaves your device.**
 
 Current version: **v0.4.2** (`0.x` is a pre-1.0 public preview; features may change based on feedback) · [Changelog](CHANGELOG.md)
+
+**[Download the latest installer](https://github.com/syoosch/Clipora/releases/latest)**
 
 Clipora automatically captures and classifies the text, images, files, links, code, colors, and rich text you copy. Browse history in reverse-chronological order, grouped into collapsible 8-hour time segments. Search, tag, pin, and recover from a recycle bin. Click any card to copy it and paste it straight back into your previous window. The UI uses the Windows 11 Mica material and follows your system light/dark theme.
 
@@ -21,10 +32,10 @@ Clipora automatically captures and classifies the text, images, files, links, co
 - **Global hotkeys**: `Alt+V` opens the panel by default; additional rebindable hotkeys for "paste as plain text", "sequential paste", and more, with conflict detection.
 - **Image OCR**: uses Windows' built-in OCR (offline) so text inside images becomes searchable.
 - **Auto-cleanup**: by retention period (1 / 3 / 7 / 30 days / forever; default 3); pinned items are never cleaned up.
-- **Appearance**: System / Light / Dark color modes, rounded Mica surfaces, hover-lift and fade-in animations.
+- **Appearance**: System / Light / Dark color modes; switch between Fluent and Liquid Glass, tune glass transparency, or use a custom local background in Fluent mode.
 - **Privacy & data**: entirely local, zero network requests; configurable app-exclusion list; backup export / import (`.clpbak`).
 
-> Note: Liquid Glass / Sticky Note skins, accent-color customization, and English/Chinese language switching are planned for later releases and are not enabled in this version.
+> Note: Sticky Note skins, accent-color customization, and in-app English/Chinese language switching are planned for later releases.
 
 ---
 
@@ -38,7 +49,7 @@ Clipora automatically captures and classifies the text, images, files, links, co
 
 ## 📦 Installation
 
-1. Download `Clipora-0.1.1-setup.exe`.
+1. Open the [latest release](https://github.com/syoosch/Clipora/releases/latest) and download `Clipora-0.4.2-setup.exe`.
 2. Run it. The installer is **per-user (no admin rights required)** and installs to your user directory by default.
 3. This build is **not code-signed**, so Windows SmartScreen may show "Windows protected your PC": click **"More info" → "Run anyway"** (this is normal for unsigned apps; the installer makes no network connections and uploads nothing).
 
@@ -84,6 +95,12 @@ powershell -ExecutionPolicy Bypass -File scripts/build-installer.ps1
 ```
 
 > Dev builds must be launched via `scripts/start-dev.ps1` (it sets `CLIPORA_DATA_DIR` to the in-repo `.dev-data` isolated directory). Never run the Debug exe directly, to avoid touching real data.
+
+## 🤝 Contributing and security
+
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+- Use the structured GitHub issue forms for bugs and feature requests. Never include private clipboard contents or personal files in an issue.
+- Report security vulnerabilities according to [SECURITY.md](SECURITY.md), not in a public issue.
 
 ---
 

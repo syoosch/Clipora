@@ -1,10 +1,21 @@
+<p align="center">
+  <img src="src/Clipora/Assets/clipora-icon.png" width="96" alt="Clipora 图标">
+</p>
+
 # Clipora
+
+[![最新版本](https://img.shields.io/github/v/release/syoosch/Clipora?display_name=tag)](https://github.com/syoosch/Clipora/releases/latest)
+[![下载量](https://img.shields.io/github/downloads/syoosch/Clipora/total)](https://github.com/syoosch/Clipora/releases)
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![平台](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)](#-系统要求)
 
 [English](README.md) | **简体中文**
 
 > 常驻 Windows 的本地剪贴板历史工具 —— 自动记录你复制过的内容，随时找回、重用。**纯本地运行，数据不外传。**
 
 当前版本：**v0.4.2**（`0.x` 为 1.0 前的公开预览，功能可能随反馈调整） · [更新日志](CHANGELOG.md)
+
+**[下载最新版安装包](https://github.com/syoosch/Clipora/releases/latest)**
 
 Clipora 自动监听并分类记录你复制的文字、图片、文件、链接、代码、颜色与富文本，按时间倒序、按 8 小时时间段可折叠分组浏览，支持搜索、打标签、置顶、回收站，点一下即可复制并自动粘贴回原窗口。界面采用 Win11 云母质感，跟随系统深浅色。
 
@@ -21,10 +32,10 @@ Clipora 自动监听并分类记录你复制的文字、图片、文件、链接
 - **全局快捷键**：默认 `Alt+V` 唤出面板；另有「纯文本粘贴」「顺序粘贴」等独立可改快捷键，带占用冲突检测。
 - **图片 OCR**：调用 Windows 本地 OCR（不联网），让图片里的文字也能被搜索到。
 - **自动清理**：按保存天数（1 / 3 / 7 / 30 / 永久，默认 3 天）自动清理，置顶项不清理。
-- **外观**：跟随系统 / 浅色 / 深色三种颜色模式，圆角云母、悬停浮起、新内容淡入等动效。
+- **外观**：跟随系统 / 浅色 / 深色三种颜色模式；支持 Fluent / 液态玻璃即时切换、玻璃通透度调节，以及 Fluent 主题本地自定义背景。
 - **隐私与数据**：全程本地、无任何网络请求；可设置应用排除名单；支持备份导出 / 导入（`.clpbak`）。
 
-> 说明：液态玻璃 / 便签外观、强调色自定义、中英文切换为后续版本计划，当前版本暂未启用。
+> 说明：便签外观、强调色自定义和应用内中英文切换仍为后续版本计划。
 
 ---
 
@@ -38,7 +49,7 @@ Clipora 自动监听并分类记录你复制的文字、图片、文件、链接
 
 ## 📦 安装
 
-1. 下载 `Clipora-0.1.1-setup.exe`。
+1. 打开[最新版发布页面](https://github.com/syoosch/Clipora/releases/latest)，下载 `Clipora-0.4.2-setup.exe`。
 2. 双击运行。安装包为 **per-user（无需管理员权限）**，默认安装到当前用户目录。
 3. 当前版本**未做代码签名**，Windows SmartScreen 可能提示「已保护你的电脑」：点击 **「更多信息」→「仍要运行」** 即可（这是未签名应用的正常提示，安装包不联网、不上传任何数据）。
 
@@ -84,6 +95,12 @@ powershell -ExecutionPolicy Bypass -File scripts/build-installer.ps1
 ```
 
 > 开发版必须经 `scripts/start-dev.ps1` 启动（会设置 `CLIPORA_DATA_DIR` 指向仓库内 `.dev-data` 隔离目录），切勿直接运行 Debug exe 以免误触正式数据。
+
+## 🤝 参与贡献与安全报告
+
+- 提交 Pull Request 前请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+- Bug 和功能建议请使用 GitHub 的结构化 Issue 表单；不要在 Issue 中附带私人剪贴板内容或个人文件。
+- 安全漏洞请按 [SECURITY.md](SECURITY.md) 私下报告，不要创建公开 Issue。
 
 ---
 
