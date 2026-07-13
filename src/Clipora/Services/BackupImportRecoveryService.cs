@@ -41,11 +41,21 @@ public sealed class BackupImportRecoveryService
 
     private void RecoverOne(string stagingDir)
     {
-        string journalPath = Path.Combine(stagingDir, "import-journal.json");
+        string stagingParent = Path.Combine(_root, ".backup-import-staging");
+        string directoryName = Path.GetFileName(Path.TrimEndingDirectorySeparator(stagingDir));
+        if (!Guid.TryParseExact(directoryName, "D", out Guid directoryImportId))
+        {
+            BackupPathPolicy.SafeDeleteTree(stagingParent, stagingDir);
+            return;
+        }
+
+        string v2JournalPath = Path.Combine(stagingDir, "state", "import-journal.json");
+        string legacyJournalPath = Path.Combine(stagingDir, "import-journal.json");
+        string journalPath = File.Exists(v2JournalPath) ? v2JournalPath : legacyJournalPath;
         if (!File.Exists(journalPath))
         {
-            // 无 journal → 孤立 staging 目录，可能是成功清理的残留，安全删除
-            try { Directory.Delete(stagingDir, true); } catch { }
+            // 无 journal → 只清理 staging，绝不根据归档内容推断外部路径。
+            BackupPathPolicy.SafeDeleteTree(stagingParent, stagingDir);
             return;
         }
 
@@ -57,12 +67,19 @@ public sealed class BackupImportRecoveryService
         }
         catch
         {
-            // 损坏的 journal → 无法确定状态，保留 staging 不做清理
+            // 损坏 journal 只清 staging，不碰任何最终文件。
+            BackupPathPolicy.SafeDeleteTree(stagingParent, stagingDir);
             return;
         }
 
-        if (journal is null || !Guid.TryParse(journal.ImportId, out Guid importId))
+        if (journal is null
+            || !Guid.TryParseExact(journal.ImportId, "D", out Guid importId)
+            || importId != directoryImportId
+            || !TryResolveFinalPaths(journal, stagingDir, out List<string> finalPaths))
+        {
+            BackupPathPolicy.SafeDeleteTree(stagingParent, stagingDir);
             return;
+        }
 
         bool committed = _db.HasImportSentinel(importId);
 
@@ -70,7 +87,7 @@ public sealed class BackupImportRecoveryService
         {
             // 事务已提交：保留最终文件，清理 journal 和 staging
             try { File.Delete(journalPath); } catch { }
-            try { Directory.Delete(stagingDir, true); } catch { }
+            BackupPathPolicy.SafeDeleteTree(stagingParent, stagingDir);
 
             // 再在独立事务中删哨兵
             _db.DeleteImportSentinel(importId);
@@ -78,17 +95,60 @@ public sealed class BackupImportRecoveryService
         else
         {
             // 事务未提交：删除本批最终文件和 staging
-            if (journal.FinalPaths is not null)
+            foreach (string path in finalPaths)
             {
-                foreach (string path in journal.FinalPaths)
-                {
-                    try { File.Delete(path); } catch { }
-                }
+                try { File.Delete(path); } catch { }
             }
 
             // 先删 journal，再删 staging
             try { File.Delete(journalPath); } catch { }
-            try { Directory.Delete(stagingDir, true); } catch { }
+            BackupPathPolicy.SafeDeleteTree(stagingParent, stagingDir);
+        }
+    }
+
+    private bool TryResolveFinalPaths(
+        BackupImportJournal journal, string stagingDir, out List<string> finalPaths)
+    {
+        finalPaths = new List<string>();
+        var unique = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            if (journal.Version == 2)
+            {
+                if (journal.FinalRelativePaths is null)
+                    return false;
+                foreach (string relativePath in journal.FinalRelativePaths)
+                {
+                    if (!BackupPathPolicy.TryNormalizeManagedRelativePath(
+                            relativePath, out string normalized, out _)
+                        || !unique.Add(normalized))
+                        return false;
+                    finalPaths.Add(BackupPathPolicy.CombineUnderRoot(_root, normalized));
+                }
+                return true;
+            }
+
+            // v1 兼容仅接受与当前 staging 完全匹配、且所有绝对最终路径严格落在允许受管目录内的旧 journal。
+            if (journal.Version is not 0 and not 1
+                || string.IsNullOrWhiteSpace(journal.StagingRoot)
+                || !Path.GetFullPath(journal.StagingRoot).Equals(
+                    Path.GetFullPath(stagingDir), StringComparison.OrdinalIgnoreCase)
+                || journal.FinalPaths is null)
+                return false;
+
+            foreach (string oldAbsolutePath in journal.FinalPaths)
+            {
+                if (!BackupPathPolicy.TryGetManagedRelativePath(_root, oldAbsolutePath, out string normalized)
+                    || !unique.Add(normalized))
+                    return false;
+                finalPaths.Add(BackupPathPolicy.CombineUnderRoot(_root, normalized));
+            }
+            return true;
+        }
+        catch
+        {
+            finalPaths.Clear();
+            return false;
         }
     }
 }

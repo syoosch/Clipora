@@ -44,6 +44,7 @@ public partial class App : Application
     private SequentialPasteSession? _sequentialPasteSession;
     private WindowsOcrService? _ocrService;
     private OcrProcessingService? _ocrProcessing;
+    private CrashDiagnosticService? _diagnostics;
     private readonly Queue<PendingHotkeyPaste> _pendingHotkeyPastes = new();
     private DispatcherTimer? _hotkeyPasteTimer;
     private DispatcherTimer? _trayRetryTimer;
@@ -58,18 +59,17 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        // 开发期：捕获未处理异常写入临时文件，便于诊断启动崩溃。
+        _diagnostics = new CrashDiagnosticService(IsReleaseBuild);
+        _diagnostics.Initialize();
+
         DispatcherUnhandledException += (_, args) =>
         {
-            try { System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "clipora-crash.txt"), args.Exception.ToString()); } catch { }
+            _diagnostics?.WriteException(args.Exception, "DISPATCHER_UNHANDLED");
         };
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
-            try { System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "clipora-crash.txt"), args.ExceptionObject?.ToString() ?? "unknown"); } catch { }
+            _diagnostics?.WriteUnhandledObject(args.ExceptionObject, "APPDOMAIN_UNHANDLED");
         };
-
-        // M6.1a: 清理超过 7 天的旧崩溃日志
-        CleanLegacyCrashLog();
 
         if (e.Args.Contains("--selftest")) { Shutdown(DevSelfTest.Run()); return; }
         if (e.Args.Contains("--thumbnailselftest")) { Shutdown(DevSelfTest.RunImageThumbnailContainer()); return; }
@@ -94,7 +94,6 @@ public partial class App : Application
         if (!validDevRoot)
         {
             string msg = "Clipora 开发版启动失败：必须通过 scripts/start-dev.ps1 启动（该脚本会设置 CLIPORA_DATA_DIR 环境变量），禁止直接运行 Debug exe 以免损坏正式数据。";
-            try { File.WriteAllText(Path.Combine(Path.GetTempPath(), "clipora-crash.txt"), msg); } catch { }
             MessageBox.Show(msg, "Clipora — 开发环境检查", MessageBoxButton.OK, MessageBoxImage.Stop);
             Shutdown(-1);
             return;
@@ -339,6 +338,8 @@ public partial class App : Application
         _monitor.ItemOverSized += (_, size) => Dispatcher.Invoke(() => _window?.ShowOverSizedHint(size));
         viewModel.FileReferenceUnavailable += () => Dispatcher.Invoke(() => _window?.ShowFileReferenceUnavailableHint());
         viewModel.OpenFailed += (msg) => Dispatcher.Invoke(() => _window?.ShowOpenFailedHint(msg));
+        viewModel.DangerousFileOpenRequested += request => Dispatcher.Invoke(() =>
+            _window?.ShowDangerousFileOpenConfirmation(request, viewModel.ConfirmDangerousFileOpen));
 
         // —— 保留期自动清理（M4.2.2a） ——
         var eraser = new ClipItemFileEraser(paths);
@@ -400,11 +401,6 @@ public partial class App : Application
                     completedMigration.SourceRoot,
                     completedMigration.TargetRoot)));
         }
-    }
-
-    private static void TryWriteDiag(string message)
-    {
-        try { File.WriteAllText(Path.Combine(Path.GetTempPath(), "clipora-crash.txt"), message); } catch { }
     }
 
     private void OnItemUsed(ClipItem item)
@@ -736,7 +732,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            TryWriteDiag($"托盘图标加载 ICO 失败（回退手绘字母 C）: {ex.GetType().Name}: {ex.Message}");
+            _diagnostics?.WriteOperationalError("TRAY_ICON_LOAD_FAILED", ex);
         }
 
         _trayIconResource = trayIcon;
@@ -774,7 +770,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            TryWriteDiag($"托盘创建失败: {ex.GetType().Name}: {ex.Message}");
+            _diagnostics?.WriteOperationalError("TRAY_CREATE_FAILED", ex);
             return TrayCreateResult.Failure;
         }
     }
@@ -825,15 +821,17 @@ public partial class App : Application
                         _tray.ToolTipText = paused ? "Clipora 剪贴板（已暂停）" : "Clipora 剪贴板";
                 });
                 _trayRetryTimer.Stop();
-                TryWriteDiag($"托盘重试成功（第 {_trayRetryCount} 次）。");
             }
             catch (Exception ex)
             {
-                TryWriteDiag($"托盘重试失败（第 {_trayRetryCount}/{MaxTrayRetries} 次）: {ex.GetType().Name}: {ex.Message}");
+                _diagnostics?.WriteOperationalError(
+                    "TRAY_CREATE_RETRY_FAILED",
+                    ex,
+                    $"托盘重试失败（第 {_trayRetryCount}/{MaxTrayRetries} 次）: {ex}");
                 if (_trayRetryCount >= MaxTrayRetries)
                 {
                     _trayRetryTimer.Stop();
-                    TryWriteDiag("托盘重试已达上限，主窗口保持可用，托盘功能缺失。");
+                    _diagnostics?.WriteOperationalError("TRAY_CREATE_RETRY_EXHAUSTED");
                 }
             }
         };
@@ -887,7 +885,9 @@ public partial class App : Application
         if (_storageMigrationRestart?.TryLaunchAfterExit(out string? error) == false
             && !string.IsNullOrWhiteSpace(error))
         {
-            TryWriteDiag(error);
+            _diagnostics?.WriteOperationalError(
+                "STORAGE_MIGRATION_RESTART_FAILED",
+                debugDetail: error);
         }
     }
 
@@ -903,19 +903,4 @@ public partial class App : Application
         }
     }
 
-    /// <summary>M6.1a: 清理超过 7 天的旧崩溃日志，避免 %TEMP% 残留堆积。</summary>
-    private static void CleanLegacyCrashLog()
-    {
-        try
-        {
-            string crashPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "clipora-crash.txt");
-            if (System.IO.File.Exists(crashPath))
-            {
-                DateTime lastWrite = System.IO.File.GetLastWriteTimeUtc(crashPath);
-                if (DateTime.UtcNow - lastWrite > TimeSpan.FromDays(7))
-                    System.IO.File.Delete(crashPath);
-            }
-        }
-        catch { /* best-effort */ }
-    }
 }

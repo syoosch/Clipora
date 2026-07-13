@@ -2,6 +2,15 @@
 
 本文件记录 Clipora 每个版本的变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。`0.x` 为 1.0 前的公开预览，功能可能随反馈调整。
 
+## [0.4.3] - 2026-07-13
+
+### 安全
+- 将 `SQLitePCLRaw.bundle_e_sqlite3` 显式升级并固定为 3.0.3，原生 SQLite 更新至 3.50.4.5，移除 `SQLitePCLRaw.lib.e_sqlite3 2.1.11` 及其 `NU1903` 高危漏洞告警。
+- `.clpbak`、manifest、SQLite 与 payload 全部按不可信输入处理，阻断路径穿越、伪造 journal 越界删除、恶意 schema/行数据和归档声明不一致；合法 v1 备份保持兼容。
+- 可执行、脚本、快捷方式等主动文件打开前默认取消并要求明确确认；URL 仅允许 HTTP/HTTPS，普通文件仍一键打开。
+- 系统隐私标记无法确认时改为一次 50ms 非阻塞重试后跳过，避免异常时误捕获；Release 崩溃诊断改为本地脱敏、限期/限量保留。
+- 新增双语隐私说明，明确数据库、附件和备份当前未加密；无需迁移现有剪贴板数据。
+
 ## [0.4.2] - 2026-07-05
 
 ### 修复

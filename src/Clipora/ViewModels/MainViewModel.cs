@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -23,6 +22,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly TagManagement _tagManagement;
     private readonly IClipboardMonitor _monitor;
     private readonly IClipWriter _writer;
+    private readonly ExternalOpenCoordinator _externalOpen;
 
     private string _searchText = string.Empty;
     private string _newTagName = string.Empty;
@@ -123,12 +123,23 @@ public sealed class MainViewModel : ObservableObject
     }
 
     public MainViewModel(IClipStore store, ITagStore tagStore, IClipboardMonitor monitor, IClipWriter writer)
+        : this(store, tagStore, monitor, writer, new ShellExternalLauncher())
+    {
+    }
+
+    internal MainViewModel(
+        IClipStore store,
+        ITagStore tagStore,
+        IClipboardMonitor monitor,
+        IClipWriter writer,
+        IExternalLauncher externalLauncher)
     {
         _store = store;
         _tagStore = tagStore;
         _tagManagement = new TagManagement(tagStore);
         _monitor = monitor;
         _writer = writer;
+        _externalOpen = new ExternalOpenCoordinator(externalLauncher);
 
         FilterModes = new ObservableCollection<FilterModeOption>
         {
@@ -286,6 +297,9 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>文件/链接打开失败时触发，供窗口层显示瞬时提示。</summary>
     public event Action<string>? OpenFailed;
 
+    /// <summary>危险主动文件需要 View 使用默认取消的 ContentDialog 取得明确确认。</summary>
+    internal event Action<ExternalOpenRequest>? DangerousFileOpenRequested;
+
     // —— 文字选取 Popup 状态 ——
     private string _selectionPopupText = string.Empty;
     private bool _isSelectionPopupCode;
@@ -356,7 +370,7 @@ public sealed class MainViewModel : ObservableObject
         {
             string? url = vm.Model.TextContent ?? vm.Preview;
             if (!string.IsNullOrWhiteSpace(url))
-                TryOpenWithDefaultApp(url, "无法打开链接");
+                TryOpenUrl(url, "无法打开链接");
             return;
         }
 
@@ -367,7 +381,7 @@ public sealed class MainViewModel : ObservableObject
             if (!string.IsNullOrWhiteSpace(imagePath) && File.Exists(imagePath))
             {
                 TrySetReadOnly(imagePath);
-                TryOpenWithDefaultApp(imagePath, "无法打开图片");
+                TryOpenFile(imagePath, "无法打开图片");
             }
             return;
         }
@@ -407,7 +421,7 @@ public sealed class MainViewModel : ObservableObject
             }
 
             if (validation.Paths.Count > 0)
-                TryOpenWithDefaultApp(validation.Paths[0], "无法打开文件");
+                TryOpenFile(validation.Paths[0], "无法打开文件");
             return;
         }
 
@@ -416,7 +430,7 @@ public sealed class MainViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(storedPath) && File.Exists(storedPath))
         {
             TrySetReadOnly(storedPath);
-            TryOpenWithDefaultApp(storedPath, "无法打开文件");
+            TryOpenFile(storedPath, "无法打开文件");
         }
     }
 
@@ -450,20 +464,41 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>用系统默认程序打开文件/链接，失败时触发提示。</summary>
-    private void TryOpenWithDefaultApp(string path, string failMessage)
+    private void TryOpenUrl(string url, string failMessage)
     {
         try
         {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = path,
-                UseShellExecute = true,
-            });
+            _externalOpen.OpenUrl(url);
         }
         catch (Exception ex)
         {
             OpenFailed?.Invoke($"{failMessage}: {ex.Message}");
+        }
+    }
+
+    private void TryOpenFile(string path, string failMessage)
+    {
+        try
+        {
+            ExternalOpenRequest? request = _externalOpen.OpenFile(path, failMessage);
+            if (request is ExternalOpenRequest dangerous)
+                DangerousFileOpenRequested?.Invoke(dangerous);
+        }
+        catch (Exception ex)
+        {
+            OpenFailed?.Invoke($"{failMessage}: {ex.Message}");
+        }
+    }
+
+    internal void ConfirmDangerousFileOpen(ExternalOpenRequest request)
+    {
+        try
+        {
+            _externalOpen.Confirm(request);
+        }
+        catch (Exception ex)
+        {
+            OpenFailed?.Invoke($"{request.FailureMessage}: {ex.Message}");
         }
     }
 

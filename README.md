@@ -7,103 +7,79 @@
 [![Latest release](https://img.shields.io/github/v/release/syoosch/Clipora?display_name=tag)](https://github.com/syoosch/Clipora/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/syoosch/Clipora/total)](https://github.com/syoosch/Clipora/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)](#-requirements)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)](#requirements)
 
 **English** | [简体中文](README.zh-CN.md)
 
-> A local clipboard-history tool for Windows — automatically records what you copy so you can find and reuse it anytime. **Runs fully offline; your data never leaves your device.**
+Clipora is a local clipboard-history tool for Windows. It records the content you copy, keeps it organized, and lets you find and reuse it without sending clipboard data off your device.
 
-Current version: **v0.4.2** (`0.x` is a pre-1.0 public preview; features may change based on feedback) · [Changelog](CHANGELOG.md)
+Current version: **v0.4.3** · [Download the latest installer](https://github.com/syoosch/Clipora/releases/latest) · [Read the user manual](manual/README.md)
 
-**[Download the latest installer](https://github.com/syoosch/Clipora/releases/latest)**
+## Why Clipora
 
-Clipora automatically captures and classifies the text, images, files, links, code, colors, and rich text you copy. Browse history in reverse-chronological order, grouped into collapsible 8-hour time segments. Search, tag, pin, and recover from a recycle bin. Click any card to copy it and paste it straight back into your previous window. The UI uses the Windows 11 Mica material and follows your system light/dark theme.
+- **Find copied content quickly**: search your history, filter by content type or tag, and keep important items pinned.
+- **Keep more than text**: work with rich text, links, code, colors, images, files, and content dragged into the panel.
+- **Reuse content with fewer steps**: click a card to copy and paste it back, drag items into other apps, or use configurable global hotkeys.
+- **Keep control of your data**: Clipora works offline, supports pause and app exclusions, and stores its database and payloads locally.
 
----
+## Core capabilities
 
-## ✨ Features
+### Capture and organize
 
-- **Automatic capture & classification**: text / rich text / link / code / color / image / file, auto-detected by type; you can also drag files, text, or images straight into the panel.
-- **Time-segment grouping**: reverse-chronological, full load (virtualized scrolling); each day is split into Early / Day / Evening collapsible segments with only the latest expanded by default; pinned items stay fixed at the top. Cards show the source app.
-- **Search & filter**: keyword search, filter by Type or Tag.
-- **Tag management**: tag cards with existing tags, quick-create new ones; rename / delete / recolor / reorder tags in Settings.
-- **Per-item actions**: pin, delete (to a recoverable recycle bin), tag, click-to-reuse (copy and auto-paste back into the previous window), drag out to other apps.
-- **Window behavior**: always-on-top toggle, hidden from the taskbar, freely resizable; minimizes to an edge-docked strip (summoned on hover); closing hides it to the tray.
-- **Global hotkeys**: `Alt+V` opens the panel by default; additional rebindable hotkeys for "paste as plain text", "sequential paste", and more, with conflict detection.
-- **Image OCR**: uses Windows' built-in OCR (offline) so text inside images becomes searchable.
-- **Auto-cleanup**: by retention period (1 / 3 / 7 / 30 days / forever; default 3); pinned items are never cleaned up.
-- **Appearance**: System / Light / Dark color modes; switch between Fluent and Liquid Glass, tune glass transparency, or use a custom local background in Fluent mode.
-- **Privacy & data**: entirely local, zero network requests; configurable app-exclusion list; backup export / import (`.clpbak`).
+Clipora automatically classifies copied text, rich text, URLs, code, colors, images, and files. Cards show their source app and are grouped into collapsible time periods. You can also drag files, text, images, and rich text into the panel, add tags, pin important items, and recover deleted items from the recycle bin.
 
-> Note: Sticky Note skins, accent-color customization, and in-app English/Chinese language switching are planned for later releases.
+### Find and reuse
 
----
+Search across clipboard history, filter by type or tag, and use offline Windows OCR to make text inside images searchable. Click a card to copy it and optionally paste it back into the previous window, or drag supported content into another app. HTTP/HTTPS links and ordinary files can be opened from their cards; potentially active files require confirmation.
 
-## 💻 Requirements
+### Faster workflows
 
-- Windows 10 (version 2004 / build 19041 or later) or Windows 11
-- x64
-- **No separate .NET install needed** — the installer is a self-contained single file with the runtime bundled
+Press `Alt+V` to open the panel and `Ctrl+Shift+V` to paste as plain text. Assign a shortcut for sequential paste when you need to paste a captured series one item at a time. Clipora can start with Windows, stay in the tray, remain on top, and minimize to an edge-docked strip that can be recalled without searching for a window.
 
----
+### Data under your control
 
-## 📦 Installation
+Choose how long history is retained, set a per-item size limit, move the data directory through a verified migration flow, pause passive capture, and exclude selected apps. Backups can be exported and merged into an existing history. The database, payloads, and backup files are currently not encrypted; see the [Privacy Notice](PRIVACY.md) before storing sensitive material.
 
-1. Open the [latest release](https://github.com/syoosch/Clipora/releases/latest) and download `Clipora-0.4.2-setup.exe`.
-2. Run it. The installer is **per-user (no admin rights required)** and installs to your user directory by default.
-3. This build is **not code-signed**, so Windows SmartScreen may show "Windows protected your PC": click **"More info" → "Run anyway"** (this is normal for unsigned apps; the installer makes no network connections and uploads nothing).
+## Quick start
 
-**Uninstall**: via the Start Menu "Uninstall Clipora" or Windows "Settings → Apps". If Clipora is still running (including minimized to the tray), you'll be prompted and it will be fully closed after you confirm. **Uninstalling keeps your clipboard data by default** so a reinstall can pick up where you left off; data is removed only if you opt in to "also delete all data" during uninstall.
+1. Install Clipora and leave it running in the tray.
+2. Copy text, an image, or a file as usual; Clipora records it as a card.
+3. Press `Alt+V`, then search, filter, tag, or pin the item you need.
+4. Click a card to reuse it, or drag it into another application.
 
----
+For backup, storage, privacy, window, and troubleshooting instructions, see the [User Manual](manual/README.md).
 
-## 🚀 Getting started
+## Requirements
 
-1. Copy anything (text, a screenshot, files…) — Clipora records it as a card automatically.
-2. Press `Alt+V` to open the panel and browse your history.
-3. **Click a card** = copy that content and auto-paste it back into the window you were just in.
-4. Hover a card to reveal pin / delete / tag buttons; the leftmost title-bar button expands search and filters.
-5. Settings let you adjust retention days, data location, the per-item size cap, appearance, hotkeys, the privacy exclusion list, backups, and more.
+- Windows 10 version 2004 / build 19041 or later, or Windows 11
+- x64 processor
+- No separate .NET installation; the installer contains the required runtime
+- The current application interface is Simplified Chinese; English project documentation is available here
 
----
+## Installation
 
-## 🔒 Data & privacy
+1. Open the [latest release](https://github.com/syoosch/Clipora/releases/latest).
+2. Download `Clipora-0.4.3-setup.exe` and run it. Installation is per-user and does not require administrator rights.
+3. The installer is not code-signed. If Windows SmartScreen appears, choose **More info**, verify the publisher context and checksum from the release, then choose **Run anyway** if you trust the file.
 
-- **Fully local**: clipboard data is stored only on your PC; the app never connects to the network or uploads anything.
-- **Data location**: defaults to `%LOCALAPPDATA%\Clipora`; the installed version lets you customize and safely migrate it (copy → verify → atomic switch, falling back to the old directory on failure, never auto-merging or deleting).
-- **Per-item size cap**: 25 MB by default; larger items are flagged and not stored.
-- Respects the system "exclude from clipboard history" marker.
+## Documentation
 
----
+- [User Manual](manual/README.md)
+- [Privacy Notice](PRIVACY.md)
+- [Changelog](CHANGELOG.md)
+- [Security Policy](SECURITY.md)
+- [Contributing Guide](CONTRIBUTING.md)
 
-## 🛠 Tech stack
+## Development
 
-.NET 10 · WPF · [WPF-UI](https://github.com/lepoco/wpfui) · SQLite
-
-## 🧑‍💻 Building from source
+Clipora is built with .NET 10, WPF, WPF-UI, and SQLite. Development builds must be launched through `scripts/start-dev.ps1` so they use the repository's isolated data directory.
 
 ```powershell
-# Run a dev build (isolated data directory, won't touch real data)
 powershell -ExecutionPolicy Bypass -File scripts/start-dev.ps1 -Build
-
-# Compile
-dotnet build src/Clipora
-
-# Publish + build the installer (requires Inno Setup 6)
-powershell -ExecutionPolicy Bypass -File scripts/publish.ps1
-powershell -ExecutionPolicy Bypass -File scripts/build-installer.ps1
 ```
 
-> Dev builds must be launched via `scripts/start-dev.ps1` (it sets `CLIPORA_DATA_DIR` to the in-repo `.dev-data` isolated directory). Never run the Debug exe directly, to avoid touching real data.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Report vulnerabilities according to [SECURITY.md](SECURITY.md), not in a public issue.
 
-## 🤝 Contributing and security
+## License
 
-- Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
-- Use the structured GitHub issue forms for bugs and feature requests. Never include private clipboard contents or personal files in an issue.
-- Report security vulnerabilities according to [SECURITY.md](SECURITY.md), not in a public issue.
-
----
-
-## 📌 Versioning
-
-Uses Semantic Versioning (`MAJOR.MINOR.PATCH`). `0.x` is a pre-1.0 public preview; the first feature-complete stable release will be `1.0.0`. The version is shown at the bottom of the Settings page.
+Clipora is available under the [MIT License](LICENSE).

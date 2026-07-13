@@ -17,6 +17,10 @@ namespace Clipora.Services;
 public sealed class BackupService : IBackupService
 {
     private const int FormatVersion = 1;
+    private const int CurrentSchemaVersion = 2;
+    private const int MaxArchiveEntries = 100_000;
+    private const long MaxArchiveBytes = 10L * 1024 * 1024 * 1024;
+    private const long MaxManifestBytes = 4L * 1024 * 1024;
 
     private readonly AppPaths _paths;
     private readonly Database _db;
@@ -102,7 +106,8 @@ public sealed class BackupService : IBackupService
             foreach (string absPath in referencedPaths.OrderBy(p => p))
             {
                 ct.ThrowIfCancellationRequested();
-                string relPath = AppPaths.GetRelativePath(_paths.Root, absPath);
+                if (!BackupPathPolicy.TryGetManagedRelativePath(_paths.Root, absPath, out string relPath))
+                    throw new InvalidDataException($"导出 payload 不在允许的受管目录：{Path.GetFileName(absPath)}");
 
                 // 跳过数据库和 settings（另行处理）
                 if (relPath == "clipora.db" || relPath == "settings.json")
@@ -203,16 +208,12 @@ public sealed class BackupService : IBackupService
         try
         {
             using var zip = ZipFile.OpenRead(archivePath);
-            var manifestEntry = zip.GetEntry("manifest.json")
-                ?? throw new InvalidOperationException("归档缺少 manifest.json");
-
-            using var manifestStream = manifestEntry.Open();
-            var manifest = JsonSerializer.Deserialize(manifestStream, JsonContext.Default.BackupManifest)
-                ?? throw new InvalidOperationException("manifest.json 无效");
-
-            bool compatible = manifest.FormatVersion <= FormatVersion;
+            ValidatedArchive validated = ValidateArchiveLayout(zip, requireSupportedVersion: false, ct);
+            BackupManifest manifest = validated.Manifest;
+            bool compatible = manifest.FormatVersion == FormatVersion
+                && manifest.SchemaVersion == CurrentSchemaVersion;
             string? incompatibility = compatible ? null
-                : $"格式版本 {manifest.FormatVersion} 不被当前版本（最高 {FormatVersion}）支持";
+                : $"格式版本 {manifest.FormatVersion}/schema {manifest.SchemaVersion} 不被当前版本支持";
 
             return Task.FromResult(new BackupPreview(
                 compatible, manifest.FormatVersion, manifest.ItemCount,
@@ -237,120 +238,119 @@ public sealed class BackupService : IBackupService
         Guid importId = Guid.NewGuid();
         string? stagingRoot = null;
         string? journalPath = null;
-        var finalPaths = new List<string>();
+        var finalFiles = new List<(string RelativePath, string AbsolutePath)>();
+        bool preserveStagingForRecovery = false;
 
         try
         {
-            // 1. InspectAsync 预检
+            // 1. 归档布局/manifest 预检（不信任 Inspect 的 UI 结果，导入时重新完整验证）
             progress?.Report(new(BackupPhase.Preparing, 0, 0));
-            var preview = await InspectAsync(archivePath, ct);
-            if (!preview.Compatible)
-                return new BackupImportResult(false, 0, 0, preview.Incompatibility);
-            ct.ThrowIfCancellationRequested();
-
-            // 2. ZIP 预检：Zip Slip + 条目数/大小限制
             using var zip = ZipFile.OpenRead(archivePath);
-            const long maxEntryCount = 100000;
-            const long maxTotalBytes = 10L * 1024 * 1024 * 1024; // 10GB
-            long totalUncompressed = 0;
+            ValidatedArchive validated = ValidateArchiveLayout(zip, requireSupportedVersion: true, ct);
+            EnsureFreeSpace(_paths.Root, validated.TotalUncompressedBytes);
+            int? sourceZoneId = TryReadInternetZoneId(archivePath);
 
-            if (zip.Entries.Count > maxEntryCount)
-                return new BackupImportResult(false, 0, 0, $"归档条目数 {zip.Entries.Count} 超过上限 {maxEntryCount}");
-
-            foreach (var entry in zip.Entries)
-            {
-                ct.ThrowIfCancellationRequested();
-                totalUncompressed += entry.Length;
-                if (totalUncompressed > maxTotalBytes)
-                    return new BackupImportResult(false, 0, 0, "归档展开大小超过 10GB 上限");
-                if (IsZipSlip(entry.FullName))
-                    return new BackupImportResult(false, 0, 0, $"Zip Slip 拒绝: {entry.FullName}");
-            }
-
-            // 3. 创建 staging 目录
+            // 2. 创建相互隔离的 app-owned state 与 untrusted archive 目录
             stagingRoot = Path.Combine(_paths.Root, ".backup-import-staging", importId.ToString("D"));
-            Directory.CreateDirectory(stagingRoot);
+            string stateRoot = Path.Combine(stagingRoot, "state");
+            string archiveRoot = Path.Combine(stagingRoot, "archive");
+            Directory.CreateDirectory(stateRoot);
+            Directory.CreateDirectory(archiveRoot);
 
-            // 4. 解压到 staging
+            // 3. 逐流解压并同时核对实际长度、总展开量与 SHA-256。
             progress?.Report(new(BackupPhase.CopyingFiles, 0, zip.Entries.Count));
             int fileIdx = 0;
-            foreach (var entry in zip.Entries)
+            long actualExpandedBytes = 0;
+            foreach (ValidatedArchiveEntry validatedEntry in validated.Entries)
             {
                 ct.ThrowIfCancellationRequested();
-                string destPath = Path.Combine(stagingRoot, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
-                // 纵深防御：规范化后的目标必须仍位于 staging 内，
-                // 拦截前置扫描遗漏的任何 Zip Slip 变体（绝对路径/规范化绕过）。
-                string stagingFull = Path.GetFullPath(stagingRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-                if (!Path.GetFullPath(destPath).StartsWith(stagingFull, StringComparison.OrdinalIgnoreCase))
-                    return new BackupImportResult(false, 0, 0, $"Zip Slip 拒绝: {entry.FullName}");
-                if (entry.FullName.EndsWith('/') || string.IsNullOrEmpty(entry.Name))
+                string destPath = BackupPathPolicy.CombineUnderRoot(archiveRoot, validatedEntry.NormalizedPath);
+                if (validatedEntry.IsDirectory)
                 {
                     Directory.CreateDirectory(destPath);
+                    continue;
                 }
-                else
+                if (BackupPathPolicy.HasReparsePointInExistingAncestors(archiveRoot, destPath))
+                    throw new InvalidDataException($"归档目标路径包含重解析点：{validatedEntry.NormalizedPath}");
+
+                Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+                using Stream source = validatedEntry.Entry.Open();
+                using var destination = new FileStream(destPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                using IncrementalHash? hash = validatedEntry.ManifestEntry is null
+                    ? null
+                    : IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                byte[] buffer = new byte[128 * 1024];
+                long entryBytes = 0;
+                while (true)
                 {
-                    Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
-                    entry.ExtractToFile(destPath, overwrite: false);
-                    fileIdx++;
-                    progress?.Report(new(BackupPhase.CopyingFiles, fileIdx, zip.Entries.Count));
+                    int read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), ct)
+                        .ConfigureAwait(false);
+                    if (read == 0) break;
+                    await destination.WriteAsync(buffer.AsMemory(0, read), ct)
+                        .ConfigureAwait(false);
+                    hash?.AppendData(buffer, 0, read);
+                    entryBytes = checked(entryBytes + read);
+                    actualExpandedBytes = checked(actualExpandedBytes + read);
+                    if (entryBytes > validatedEntry.Entry.Length || actualExpandedBytes > MaxArchiveBytes)
+                        throw new InvalidDataException("归档实际展开大小超过声明或硬上限");
                 }
+
+                if (entryBytes != validatedEntry.Entry.Length)
+                    throw new InvalidDataException($"归档条目实际长度不符：{validatedEntry.NormalizedPath}");
+                if (validatedEntry.ManifestEntry is BackupManifestEntry manifestEntry)
+                {
+                    if (entryBytes != manifestEntry.Length)
+                        throw new InvalidDataException($"manifest 声明长度不符：{manifestEntry.RelativePath}");
+                    string actualHash = Convert.ToHexString(hash!.GetHashAndReset());
+                    if (!actualHash.Equals(manifestEntry.Sha256, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException($"SHA-256 校验失败：{manifestEntry.RelativePath}");
+                }
+
+                fileIdx++;
+                progress?.Report(new(BackupPhase.CopyingFiles, fileIdx, zip.Entries.Count));
             }
 
-            // 5. 读 manifest.json（从 staging）
-            string stagingManifestPath = Path.Combine(stagingRoot, "manifest.json");
-            var manifest = JsonSerializer.Deserialize<BackupManifest>(
-                File.ReadAllText(stagingManifestPath, Encoding.UTF8), JsonContext.Default.BackupManifest)!;
+            // 4. 恶意 SQLite / schema / 行语义 / payload 映射验证。
+            progress?.Report(new(BackupPhase.Validating, 0, validated.Manifest.Entries.Count));
+            string stagingDb = BackupPathPolicy.CombineUnderRoot(archiveRoot, "clipora.db");
+            BackupDatabaseSnapshot snapshot = BackupDatabaseValidator.ValidateAndRead(
+                stagingDb,
+                validated.Manifest.SchemaVersion,
+                validated.Manifest.ItemCount,
+                archiveRoot,
+                validated.PayloadRelativePaths);
+            progress?.Report(new(BackupPhase.Validating, validated.Manifest.Entries.Count, validated.Manifest.Entries.Count));
 
-            // 6. SHA-256 校验
-            progress?.Report(new(BackupPhase.Validating, 0, manifest.Entries.Count));
-            for (int i = 0; i < manifest.Entries.Count; i++)
-            {
-                ct.ThrowIfCancellationRequested();
-                var e = manifest.Entries[i];
-                string absPath = e.RelativePath == "clipora.db"
-                    ? Path.Combine(stagingRoot, "clipora.db")
-                    : Path.Combine(stagingRoot, "payloads", e.RelativePath.Replace('/', Path.DirectorySeparatorChar));
-                if (!File.Exists(absPath))
-                    return new BackupImportResult(false, 0, 0, $"SHA-256 校验失败：{e.RelativePath} 缺失");
-                string actual = ComputeSha256(absPath);
-                if (!string.Equals(actual, e.Sha256, StringComparison.OrdinalIgnoreCase))
-                    return new BackupImportResult(false, 0, 0, $"SHA-256 校验失败：{e.RelativePath}");
-                progress?.Report(new(BackupPhase.Validating, i + 1, manifest.Entries.Count));
-            }
-
-            // 7. 为 payload 分配最终唯一名（不覆盖现有文件）
+            // 5. 为 payload 分配最终唯一受管相对路径（不覆盖现有文件）。
             //    同时记录「归档相对路径 → 实际落地 finalPath」映射，供 DB 路径列重链。
             var payloadMoves = new List<(string StagingPath, string FinalPath)>();
             var relToFinal = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var entry in manifest.Entries)
+            foreach (string relativePath in validated.PayloadRelativePaths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
             {
-                if (entry.RelativePath == "clipora.db" || entry.RelativePath == "manifest.json")
-                    continue;
-                string stagingPath = Path.Combine(stagingRoot, "payloads",
-                    entry.RelativePath.Replace('/', Path.DirectorySeparatorChar));
-                string finalPath = MakeUniqueFinalPath(entry.RelativePath);
+                string stagingPath = BackupPathPolicy.CombineUnderRoot(archiveRoot, "payloads/" + relativePath);
+                string finalRelative = MakeUniqueFinalRelativePath(relativePath);
+                string finalPath = BackupPathPolicy.CombineUnderRoot(_paths.Root, finalRelative);
+                if (BackupPathPolicy.HasReparsePointInExistingAncestors(_paths.Root, finalPath))
+                    throw new InvalidDataException($"最终路径包含重解析点：{finalRelative}");
                 payloadMoves.Add((stagingPath, finalPath));
-                finalPaths.Add(finalPath);
-
-                string relKey = entry.RelativePath
-                    .Replace('/', Path.DirectorySeparatorChar)
-                    .TrimStart(Path.DirectorySeparatorChar);
+                finalFiles.Add((finalRelative, finalPath));
+                string relKey = relativePath.Replace('/', Path.DirectorySeparatorChar);
                 relToFinal[relKey] = finalPath;
             }
 
-            // 8. 写 journal
-            journalPath = Path.Combine(stagingRoot, "import-journal.json");
+            // 6. journal v2 仅记录受管相对路径，原子写入且先于任何 payload 移动。
+            journalPath = Path.Combine(stateRoot, "import-journal.json");
             var journal = new BackupImportJournal
             {
+                Version = 2,
                 ImportId = importId.ToString("D"),
-                StagingRoot = stagingRoot,
-                FinalPaths = finalPaths,
+                FinalRelativePaths = finalFiles.Select(file => file.RelativePath).ToList(),
                 Phase = "pre_commit",
             };
-            File.WriteAllText(journalPath, JsonSerializer.Serialize(journal, JsonContext.Default.BackupImportJournal), Encoding.UTF8);
+            WriteJournalAtomically(journalPath, journal);
 
-            // 9. 合并式去重导入
-            progress?.Report(new(BackupPhase.Merging, 0, manifest.ItemCount));
+            // 7. 合并式去重导入
+            progress?.Report(new(BackupPhase.Merging, 0, validated.Manifest.ItemCount));
             int imported = 0, skipped = 0;
             int itemIdx = 0;
 
@@ -365,11 +365,12 @@ public sealed class BackupService : IBackupService
                         ct.ThrowIfCancellationRequested();
                         Directory.CreateDirectory(Path.GetDirectoryName(finalPath)!);
                         File.Move(stagingPath, finalPath, overwrite: false);
+                        TryWriteInternetZone(finalPath, sourceZoneId);
                     }
 
-                    // 读取 staging clipora.db 的活动行
-                    string stagingDb = Path.Combine(stagingRoot, "clipora.db");
-                    var (items, tags, tagMappings) = ReadActiveItemsFromSnapshot(stagingDb);
+                    List<ClipItem> items = snapshot.Items;
+                    List<Tag> tags = snapshot.Tags;
+                    List<(long ClipItemId, long TagId)> tagMappings = snapshot.TagMappings;
 
                     // 标签重映射：Name→Id
                     var tagNameMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
@@ -481,7 +482,7 @@ public sealed class BackupService : IBackupService
 
                         imported++;
                         itemIdx++;
-                        progress?.Report(new(BackupPhase.Merging, itemIdx, manifest.ItemCount));
+                        progress?.Report(new(BackupPhase.Merging, itemIdx, validated.Manifest.ItemCount));
                     }
 
                     // 写哨兵
@@ -497,38 +498,263 @@ public sealed class BackupService : IBackupService
                 {
                     // ROLLBACK + 删除本批新文件
                     try { txn.Rollback(); } catch { }
-                    foreach (var path in finalPaths)
-                    {
-                        try { File.Delete(path); } catch { }
-                    }
+                    preserveStagingForRecovery = !TryDeleteFinalFiles(finalFiles);
                     throw;
                 }
             }
 
-            // 10. 成功后清理 journal + staging
-            progress?.Report(new(BackupPhase.Finalizing, imported, manifest.ItemCount));
+            // 8. 成功后清理 journal + staging；清理失败由下次启动按 sentinel 收尾。
+            progress?.Report(new(BackupPhase.Finalizing, imported, validated.Manifest.ItemCount));
             if (journalPath is not null)
             {
                 try { File.Delete(journalPath); } catch { }
             }
             if (stagingRoot is not null)
             {
-                try { Directory.Delete(stagingRoot, true); } catch { }
+                BackupPathPolicy.SafeDeleteTree(Path.Combine(_paths.Root, ".backup-import-staging"), stagingRoot);
             }
 
             return new BackupImportResult(true, imported, skipped, null);
         }
-        catch (OperationCanceledException) { throw; }
+        catch (OperationCanceledException)
+        {
+            preserveStagingForRecovery = !TryDeleteFinalFiles(finalFiles);
+            throw;
+        }
         catch (Exception ex)
         {
-            // 失败不删 journal（供崩溃恢复使用）
+            preserveStagingForRecovery = !TryDeleteFinalFiles(finalFiles);
             return new BackupImportResult(false, 0, 0, ex.Message);
+        }
+        finally
+        {
+            if (!preserveStagingForRecovery && stagingRoot is not null)
+                BackupPathPolicy.SafeDeleteTree(Path.Combine(_paths.Root, ".backup-import-staging"), stagingRoot);
         }
     }
 
     // ══════════════════════════════════════════════
     //  内部 helper
     // ══════════════════════════════════════════════
+
+    private static ValidatedArchive ValidateArchiveLayout(
+        ZipArchive zip, bool requireSupportedVersion, CancellationToken ct)
+    {
+        if (zip.Entries.Count > MaxArchiveEntries)
+            throw new InvalidDataException($"归档条目数 {zip.Entries.Count} 超过上限 {MaxArchiveEntries}");
+
+        var normalizedEntries = new Dictionary<string, ValidatedArchiveEntry>(StringComparer.OrdinalIgnoreCase);
+        long totalBytes = 0;
+        foreach (ZipArchiveEntry entry in zip.Entries)
+        {
+            ct.ThrowIfCancellationRequested();
+            bool isDirectory = string.IsNullOrEmpty(entry.Name)
+                && (entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\'));
+            if (!BackupPathPolicy.TryNormalizeArchiveEntry(
+                    entry.FullName, isDirectory, out string normalized, out string error))
+                throw new InvalidDataException($"归档路径被拒绝：{entry.FullName}（{error}）");
+            if (!normalizedEntries.TryAdd(normalized, new ValidatedArchiveEntry(entry, normalized, isDirectory)))
+                throw new InvalidDataException($"归档存在规范化后重复路径：{normalized}");
+            if (isDirectory && entry.Length != 0)
+                throw new InvalidDataException($"归档目录条目长度非零：{normalized}");
+
+            totalBytes = checked(totalBytes + entry.Length);
+            if (totalBytes > MaxArchiveBytes)
+                throw new InvalidDataException("归档展开大小超过 10GB 上限");
+        }
+
+        if (!normalizedEntries.TryGetValue("manifest.json", out ValidatedArchiveEntry? manifestArchiveEntry)
+            || manifestArchiveEntry.IsDirectory)
+            throw new InvalidDataException("归档必须恰好包含一个 manifest.json");
+        if (manifestArchiveEntry.Entry.Length > MaxManifestBytes)
+            throw new InvalidDataException("manifest.json 超过 4 MiB 上限");
+
+        BackupManifest manifest;
+        using (Stream stream = manifestArchiveEntry.Entry.Open())
+        using (var memory = new MemoryStream())
+        {
+            byte[] buffer = new byte[64 * 1024];
+            long bytes = 0;
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                int read = stream.Read(buffer, 0, buffer.Length);
+                if (read == 0) break;
+                bytes = checked(bytes + read);
+                if (bytes > MaxManifestBytes || bytes > manifestArchiveEntry.Entry.Length)
+                    throw new InvalidDataException("manifest.json 实际展开大小异常");
+                memory.Write(buffer, 0, read);
+            }
+            if (bytes != manifestArchiveEntry.Entry.Length)
+                throw new InvalidDataException("manifest.json 实际长度与 ZIP 声明不一致");
+            memory.Position = 0;
+            manifest = JsonSerializer.Deserialize(memory, JsonContext.Default.BackupManifest)
+                ?? throw new InvalidDataException("manifest.json 无效");
+        }
+
+        if (manifest.FormatVersion <= 0
+            || (requireSupportedVersion && manifest.FormatVersion != FormatVersion))
+            throw new InvalidDataException($"不支持的备份格式版本 {manifest.FormatVersion}");
+        if (manifest.ItemCount < 0)
+            throw new InvalidDataException("manifest ItemCount 不能为负数");
+        if (!manifest.IncludesPayloads || manifest.Entries is null)
+            throw new InvalidDataException("manifest 缺少 payload 声明");
+
+        var manifestPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var expectedArchiveFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "manifest.json" };
+        var payloadPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        bool sawDatabase = false;
+        foreach (BackupManifestEntry manifestEntry in manifest.Entries)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (manifestEntry.Length < 0
+                || manifestEntry.Sha256.Length != 64
+                || !manifestEntry.Sha256.All(Uri.IsHexDigit))
+                throw new InvalidDataException($"manifest 长度或 SHA-256 非法：{manifestEntry.RelativePath}");
+
+            string normalizedRelative;
+            string archivePath;
+            if (manifestEntry.RelativePath.Equals("clipora.db", StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedRelative = "clipora.db";
+                archivePath = "clipora.db";
+                if (sawDatabase)
+                    throw new InvalidDataException("manifest 重复声明 clipora.db");
+                sawDatabase = true;
+            }
+            else
+            {
+                if (!BackupPathPolicy.TryNormalizeManagedRelativePath(
+                        manifestEntry.RelativePath, out normalizedRelative, out string error))
+                    throw new InvalidDataException($"manifest 路径被拒绝：{manifestEntry.RelativePath}（{error}）");
+                archivePath = "payloads/" + normalizedRelative;
+                payloadPaths.Add(normalizedRelative);
+            }
+
+            if (!manifestPaths.Add(normalizedRelative))
+                throw new InvalidDataException($"manifest 存在规范化后重复路径：{normalizedRelative}");
+            expectedArchiveFiles.Add(archivePath);
+            if (!normalizedEntries.TryGetValue(archivePath, out ValidatedArchiveEntry? archiveEntry)
+                || archiveEntry.IsDirectory)
+                throw new InvalidDataException($"归档缺少 manifest 声明的条目：{archivePath}");
+            if (archiveEntry.Entry.Length != manifestEntry.Length)
+                throw new InvalidDataException($"ZIP 与 manifest 声明长度不一致：{normalizedRelative}");
+            archiveEntry.ManifestEntry = manifestEntry with { RelativePath = normalizedRelative };
+        }
+
+        if (!sawDatabase)
+            throw new InvalidDataException("manifest 必须恰好声明一个 clipora.db");
+        foreach (ValidatedArchiveEntry entry in normalizedEntries.Values.Where(entry => !entry.IsDirectory))
+        {
+            if (!expectedArchiveFiles.Contains(entry.NormalizedPath))
+                throw new InvalidDataException($"归档包含未声明条目：{entry.NormalizedPath}");
+        }
+
+        return new ValidatedArchive(
+            manifest,
+            normalizedEntries.Values.ToList(),
+            payloadPaths,
+            totalBytes);
+    }
+
+    private static void EnsureFreeSpace(string root, long expandedBytes)
+    {
+        string fullRoot = Path.GetFullPath(root);
+        string driveRoot = Path.GetPathRoot(fullRoot)
+            ?? throw new InvalidDataException("无法确定目标磁盘");
+        var drive = new DriveInfo(driveRoot);
+        long reserve = Math.Max(512L * 1024 * 1024, checked((expandedBytes + 9) / 10));
+        long required = checked(expandedBytes + reserve);
+        if (drive.AvailableFreeSpace < required)
+            throw new IOException($"目标磁盘空间不足：至少需要 {required} 字节可用空间");
+    }
+
+    private static void WriteJournalAtomically(string journalPath, BackupImportJournal journal)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(journalPath)!);
+        string tempPath = journalPath + ".tmp";
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(journal, JsonContext.Default.BackupImportJournal);
+        try
+        {
+            using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(json, 0, json.Length);
+                stream.Flush(flushToDisk: true);
+            }
+            File.Move(tempPath, journalPath, overwrite: false);
+        }
+        finally
+        {
+            try { File.Delete(tempPath); } catch { }
+        }
+    }
+
+    private bool TryDeleteFinalFiles(IEnumerable<(string RelativePath, string AbsolutePath)> files)
+    {
+        bool allDeleted = true;
+        foreach ((string relativePath, string absolutePath) in files)
+        {
+            try
+            {
+                if (!BackupPathPolicy.TryNormalizeManagedRelativePath(relativePath, out string normalized, out _))
+                {
+                    allDeleted = false;
+                    continue;
+                }
+                string validatedPath = BackupPathPolicy.CombineUnderRoot(_paths.Root, normalized);
+                if (!validatedPath.Equals(Path.GetFullPath(absolutePath), StringComparison.OrdinalIgnoreCase))
+                {
+                    allDeleted = false;
+                    continue;
+                }
+                File.Delete(validatedPath);
+                if (File.Exists(validatedPath))
+                    allDeleted = false;
+            }
+            catch
+            {
+                allDeleted = false;
+            }
+        }
+        return allDeleted;
+    }
+
+    private static int? TryReadInternetZoneId(string archivePath)
+    {
+        try
+        {
+            string text = File.ReadAllText(archivePath + ":Zone.Identifier", Encoding.UTF8);
+            foreach (string line in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (line.StartsWith("ZoneId=", StringComparison.OrdinalIgnoreCase)
+                    && int.TryParse(line["ZoneId=".Length..], out int zoneId)
+                    && zoneId is 3 or 4)
+                    return zoneId;
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private static void TryWriteInternetZone(string filePath, int? zoneId)
+    {
+        if (zoneId is not (3 or 4))
+            return;
+        try
+        {
+            File.WriteAllText(
+                filePath + ":Zone.Identifier",
+                $"[ZoneTransfer]\r\nZoneId={zoneId.Value}\r\n",
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        }
+        catch
+        {
+            // FAT/exFAT 等不支持 ADS；MOTW 是 best-effort，不阻断合法导入。
+        }
+    }
+
+    internal static void TryWriteInternetZoneForTest(string filePath, int? zoneId)
+        => TryWriteInternetZone(filePath, zoneId);
 
     private static SqliteConnection OpenTempDb(string dbPath)
     {
@@ -624,8 +850,8 @@ public sealed class BackupService : IBackupService
         try
         {
             string full = Path.GetFullPath(path);
-            string normalizedRoot = Path.GetFullPath(root);
-            if (full.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase)
+            if (BackupPathPolicy.TryGetManagedRelativePath(root, full, out _)
+                && !BackupPathPolicy.HasReparsePointInExistingAncestors(root, full)
                 && File.Exists(full))
                 paths.Add(full);
         }
@@ -643,7 +869,7 @@ public sealed class BackupService : IBackupService
     {
         // Schema 版本 = clip_items 当前列集合的版本号
         // M5.1 增列后 = 2（初始 CREATE TABLE = 1，加 OcrText/OcrStatus = 2）
-        return 2;
+        return CurrentSchemaVersion;
     }
 
     private static string GetAppVersion()
@@ -664,21 +890,26 @@ public sealed class BackupService : IBackupService
     //  导入 helper
     // ══════════════════════════════════════════════
 
-    private string MakeUniqueFinalPath(string relativePath)
+    private string MakeUniqueFinalRelativePath(string relativePath)
     {
-        string candidate = Path.Combine(_paths.Root, relativePath.Replace('/', Path.DirectorySeparatorChar));
-        if (!File.Exists(candidate))
-            return candidate;
+        if (!BackupPathPolicy.TryNormalizeManagedRelativePath(relativePath, out string normalized, out string error))
+            throw new InvalidDataException($"最终受管路径无效：{error}");
 
-        string dir = Path.GetDirectoryName(candidate)!;
-        string name = Path.GetFileNameWithoutExtension(candidate);
-        string ext = Path.GetExtension(candidate);
+        string candidate = BackupPathPolicy.CombineUnderRoot(_paths.Root, normalized);
+        if (!File.Exists(candidate) && !Directory.Exists(candidate))
+            return normalized;
+
+        string normalizedDir = Path.GetDirectoryName(normalized.Replace('/', Path.DirectorySeparatorChar))!
+            .Replace('\\', '/');
+        string name = Path.GetFileNameWithoutExtension(normalized);
+        string ext = Path.GetExtension(normalized);
         int idx = 2;
         while (true)
         {
-            string alt = Path.Combine(dir, $"{name}_{idx}{ext}");
-            if (!File.Exists(alt))
-                return alt;
+            string altRelative = normalizedDir + "/" + $"{name}_{idx}{ext}";
+            string alt = BackupPathPolicy.CombineUnderRoot(_paths.Root, altRelative);
+            if (!File.Exists(alt) && !Directory.Exists(alt))
+                return altRelative;
             idx++;
         }
     }
@@ -717,7 +948,7 @@ public sealed class BackupService : IBackupService
         dt.ToUniversalTime().ToString("o", System.Globalization.CultureInfo.InvariantCulture);
 
     internal static bool IsZipSlipForTest(string entryPath) =>
-        IsZipSlip(entryPath);
+        !BackupPathPolicy.TryNormalizeArchiveEntry(entryPath, isDirectory: false, out _, out _);
 
     private static bool IsZipSlip(string entryPath)
     {
@@ -748,10 +979,30 @@ internal readonly record struct BackupManifestEntry(string RelativePath, long Le
 /// <summary>导入崩溃恢复 journal。</summary>
 internal sealed class BackupImportJournal
 {
+    public int Version { get; set; } = 1;
     public string ImportId { get; set; } = string.Empty;
-    public string StagingRoot { get; set; } = string.Empty;
-    public List<string> FinalPaths { get; set; } = new();
+    public List<string> FinalRelativePaths { get; set; } = new();
+    // 仅用于读取 v1 journal；v2 writer 永不填充以下绝对路径字段。
+    public string? StagingRoot { get; set; }
+    public List<string>? FinalPaths { get; set; }
     public string Phase { get; set; } = string.Empty;
+}
+
+internal sealed record ValidatedArchive(
+    BackupManifest Manifest,
+    List<ValidatedArchiveEntry> Entries,
+    HashSet<string> PayloadRelativePaths,
+    long TotalUncompressedBytes);
+
+internal sealed class ValidatedArchiveEntry(
+    ZipArchiveEntry entry,
+    string normalizedPath,
+    bool isDirectory)
+{
+    internal ZipArchiveEntry Entry { get; } = entry;
+    internal string NormalizedPath { get; } = normalizedPath;
+    internal bool IsDirectory { get; } = isDirectory;
+    internal BackupManifestEntry? ManifestEntry { get; set; }
 }
 
 [System.Text.Json.Serialization.JsonSerializable(typeof(BackupManifest))]

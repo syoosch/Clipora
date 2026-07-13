@@ -1901,6 +1901,16 @@
 
                     <!-- M5.2 备份与恢复 -->
                     <StackPanel x:Name="SettingsBackupBody" Visibility="Collapsed">
+                        <Border Style="{StaticResource SettingsGroupCard}" Margin="0,0,0,12">
+                            <StackPanel Margin="14,10">
+                                <TextBlock Text="备份包含剪贴板原始内容且未加密，请保存到可信位置。"
+                                           TextWrapping="Wrap" FontSize="11"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="仅导入自己创建或来源可信的备份。"
+                                           TextWrapping="Wrap" FontSize="11" Margin="0,5,0,0"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
                         <TextBlock Text="备份" Style="{StaticResource SettingsGroupHeader}" />
                         <Border Style="{StaticResource SettingsGroupCard}">
                             <StackPanel>

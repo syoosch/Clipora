@@ -4,6 +4,7 @@ using System.Collections.Specialized;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
 using System.Threading.Tasks;
@@ -129,7 +130,7 @@ public static class DevSelfTest
                 SizeBytes = new FileInfo(sampleFile).Length,
             }, true);
             Assert(clips.GetById(fileId)?.RefPath == manifestPath, "文件类型持久化");
-            RunClipboardRoundTrip(paths, settings, clips);
+            RunClipboardRoundTripWithRetry(paths, settings, clips);
 
             long tagId = tags.Create("工作", "#0078D4");
             tags.Assign(id1, tagId);
@@ -816,6 +817,12 @@ public static class DevSelfTest
 
             // —— StorageDefaultRecoveryService（M4.2.3a-3c-1） ——
             RunStorageDefaultRecoveryTests();
+
+            // —— 外部打开策略：危险类型必须确认，测试使用 fake launcher ——
+            RunExternalOpenPolicyTests();
+
+            // —— Release/Debug 崩溃诊断脱敏与清理 ——
+            RunCrashDiagnosticTests(dir);
 
             // —— 隐私：PrivacyCapturePolicy 纯函数（M4.4.2a） ——
             RunPrivacyCapturePolicyTests();
@@ -4856,33 +4863,26 @@ public static class DevSelfTest
             : DragDropEffects.None;
     }
 
-    /// <summary>
-    /// M6.1d: 带重试的剪贴板分类。缓解 RTF 剪贴板时序波动导致的偶发 selftest 失败。
-    /// 每次尝试都重新推入数据到剪贴板，间隔 100ms（首次 50ms）。
-    /// 最多 2 次重试（共 3 次尝试）。返回最后一次分类结果供诊断断言。
-    /// </summary>
-    private static ClipItem RetryClipboardClassify(
-        ContentClassifier classifier, DataObject data,
-        Func<ClipItem, bool> condition, string label)
+    private static void RunClipboardRoundTripWithRetry(
+        AppPaths paths, SettingsService settings, IClipStore clips)
     {
-        ClipItem? lastItem = null;
-
-        for (int attempt = 0; attempt < 3; attempt++)
+        COMException? lastClipboardError = null;
+        for (int attempt = 0; attempt < 5; attempt++)
         {
-            Thread.Sleep(attempt == 0 ? 50 : 100);
-
-            // 每次尝试前重新推入数据（覆盖前序测试的剪贴板残留）
-            try { Clipboard.SetDataObject(data, copy: true); }
-            catch { /* 剪贴板被占用则跳过 */ }
-
-            lastItem = classifier.Classify();
-            if (lastItem is not null && condition(lastItem))
-                return lastItem;
+            try
+            {
+                RunClipboardRoundTrip(paths, settings, clips);
+                return;
+            }
+            catch (COMException ex) when (unchecked((uint)ex.HResult) == 0x800401D0)
+            {
+                lastClipboardError = ex;
+                Thread.Sleep(100 + attempt * 50);
+            }
         }
 
-        // 3 次均失败：返回最后一次结果供诊断断言（从不抛）
-        return lastItem
-            ?? throw new InvalidOperationException($"{label}: classify returned null after 3 attempts");
+        throw new InvalidOperationException(
+            "真实剪贴板集成自检连续 5 次无法打开系统剪贴板", lastClipboardError);
     }
 
     private static void RunClipboardRoundTrip(AppPaths paths, SettingsService settings, IClipStore clips)
@@ -5069,15 +5069,17 @@ public static class DevSelfTest
             var richUrlData = new DataObject();
             richUrlData.SetText("https://example.com/path", TextDataFormat.UnicodeText);
             richUrlData.SetData(DataFormats.Rtf, @"{\rtf1 https://example.com/path}");
-            Clipboard.SetDataObject(richUrlData, copy: true);
-            ClipItem urlItem = classifier.Classify() ?? throw new InvalidOperationException("RTF URL clipboard should classify");
+            ClipItem urlItem = classifier.ClassifyClipboardDataForTest(
+                richUrlData, sourceResolver.OwnerAppName)
+                ?? throw new InvalidOperationException("RTF URL clipboard should classify");
             Assert(urlItem.Type == ClipType.Url, "RTF URL should be stored as URL");
 
             var richColorData = new DataObject();
             richColorData.SetText("#3B82F6", TextDataFormat.UnicodeText);
             richColorData.SetData(DataFormats.Rtf, @"{\rtf1 #3B82F6}");
-            Clipboard.SetDataObject(richColorData, copy: true);
-            ClipItem colorItem = classifier.Classify() ?? throw new InvalidOperationException("RTF color clipboard should classify");
+            ClipItem colorItem = classifier.ClassifyClipboardDataForTest(
+                richColorData, sourceResolver.OwnerAppName)
+                ?? throw new InvalidOperationException("RTF color clipboard should classify");
             Assert(colorItem.Type == ClipType.Color, "RTF color should be stored as color");
 
             const string codeText = "const answer = compute();";
@@ -5086,10 +5088,9 @@ public static class DevSelfTest
             richCodeData.SetData(DataFormats.Rtf, @"{\rtf1 const answer = compute();}");
             // 7111203 起 Classify() 以 clipboard owner 作来源；编辑器识别须设 OwnerAppName（而非前台 AppName）。
             sourceResolver.OwnerAppName = "Visual Studio Code";
-            // M6.1d: RTF 剪贴板时序波动 → 最多重试 2 次，每次先 sleep 100ms
-            ClipItem codeItem = RetryClipboardClassify(classifier, richCodeData,
-                item => item is { Type: ClipType.Code, TextContent: _ } && item.TextContent == codeText,
-                $"Known editor RTF code (expected Code, text={codeText})");
+            ClipItem codeItem = classifier.ClassifyClipboardDataForTest(
+                richCodeData, sourceResolver.OwnerAppName)
+                ?? throw new InvalidOperationException("Known editor RTF code should classify");
             Assert(codeItem.Type == ClipType.Code,
                 $"Known editor RTF code should be stored as code (actual: {codeItem.Type})");
             Assert(codeItem.TextContent == codeText, "Code should preserve its plain text");
@@ -5098,28 +5099,25 @@ public static class DevSelfTest
             var richCssData = new DataObject();
             richCssData.SetText(cssText, TextDataFormat.UnicodeText);
             richCssData.SetData(DataFormats.Rtf, @"{\rtf1 :root { --background: #F8FAFC; color: #111827; }}");
-            Clipboard.SetDataObject(richCssData, copy: true);
-            ClipItem cssItem = RetryClipboardClassify(classifier, richCssData,
-                item => item is { Type: ClipType.Code },
-                $"Known editor RTF CSS (expected Code)");
+            ClipItem cssItem = classifier.ClassifyClipboardDataForTest(
+                richCssData, sourceResolver.OwnerAppName)
+                ?? throw new InvalidOperationException("Known editor RTF CSS should classify");
             Assert(cssItem.Type == ClipType.Code,
                 $"Known editor RTF CSS should be stored as code (actual: {cssItem.Type}, text: {cssItem.TextContent})");
 
             // 重置剪贴板 owner 为非编辑器，验证非编辑器来源的 RTF 不被提升为代码。
             sourceResolver.OwnerAppName = "Clipora SelfTest";
-            Thread.Sleep(50);
-            Clipboard.SetDataObject(richCodeData, copy: true);
-            ClipItem nonEditorCodeItem = RetryClipboardClassify(classifier, richCodeData,
-                item => item is { Type: ClipType.RichText },
-                "Non-editor RTF (expected RichText)");
+            ClipItem nonEditorCodeItem = classifier.ClassifyClipboardDataForTest(
+                richCodeData, sourceResolver.OwnerAppName)
+                ?? throw new InvalidOperationException("Non-editor RTF should classify");
             Assert(nonEditorCodeItem.Type == ClipType.RichText, "Non-editor RTF should not be promoted to code");
 
             var richData = new DataObject();
             richData.SetText("rich plain", TextDataFormat.UnicodeText);
             richData.SetData(DataFormats.Rtf, @"{\rtf1 rich plain}");
-            Clipboard.SetDataObject(richData, copy: true);
-
-            ClipItem richItem = classifier.Classify() ?? throw new InvalidOperationException("富文本剪贴板应可分类");
+            ClipItem richItem = classifier.ClassifyClipboardDataForTest(
+                richData, sourceResolver.OwnerAppName)
+                ?? throw new InvalidOperationException("富文本剪贴板应可分类");
             Assert(richItem.Type == ClipType.RichText, "RTF 应识别为富文本类型");
             Assert(richItem.TextContent == "rich plain", "富文本应保留纯文本 fallback");
             Assert(richItem.RefPath is not null && Path.GetExtension(richItem.RefPath).Equals(".rtf", StringComparison.OrdinalIgnoreCase), "富文本应存 RTF sidecar");
@@ -5318,53 +5316,158 @@ public static class DevSelfTest
         public string? GetDataRoot() => throw _ex;
     }
 
+    // —— v0.4.3 外部打开策略自检 ——
+
+    private static void RunExternalOpenPolicyTests()
+    {
+        Assert(ExternalOpenPolicy.EvaluateUrl("https://example.com") == ExternalOpenDecision.Allow,
+            "ExternalOpenPolicy: https 应允许");
+        Assert(ExternalOpenPolicy.EvaluateUrl("http://example.com") == ExternalOpenDecision.Allow,
+            "ExternalOpenPolicy: http 应允许");
+        Assert(ExternalOpenPolicy.EvaluateUrl("file:///C:/secret.txt") == ExternalOpenDecision.Reject,
+            "ExternalOpenPolicy: file URL 应拒绝");
+        Assert(ExternalOpenPolicy.EvaluateUrl("javascript:alert(1)") == ExternalOpenDecision.Reject,
+            "ExternalOpenPolicy: 非 HTTP URL 应拒绝");
+
+        var launcher = new FakeExternalLauncher();
+        var coordinator = new ExternalOpenCoordinator(launcher);
+        ExternalOpenRequest? safeRequest = coordinator.OpenFile("C:\\Temp\\safe.txt", "fail");
+        Assert(safeRequest is null && launcher.Targets.SequenceEqual(["C:\\Temp\\safe.txt"]),
+            "ExternalOpenPolicy: 安全文件应直接调用 launcher 一次");
+
+        string[] dangerousExtensions =
+        [
+            ".exe", ".com", ".scr", ".cpl", ".msi", ".msp", ".bat", ".cmd",
+            ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh",
+            ".hta", ".lnk", ".url", ".reg", ".application", ".appref-ms",
+        ];
+        foreach (string extension in dangerousExtensions)
+        {
+            int before = launcher.Targets.Count;
+            ExternalOpenRequest? request = coordinator.OpenFile("C:\\Temp\\danger" + extension, "fail");
+            Assert(request is not null && launcher.Targets.Count == before,
+                $"ExternalOpenPolicy: {extension} 应进入确认且取消时 launcher=0");
+        }
+
+        ExternalOpenRequest confirmed = coordinator.OpenFile("C:\\Temp\\confirm.cmd", "fail")!.Value;
+        int beforeConfirm = launcher.Targets.Count;
+        coordinator.Confirm(confirmed);
+        Assert(launcher.Targets.Count == beforeConfirm + 1
+            && launcher.Targets[^1] == "C:\\Temp\\confirm.cmd",
+            "ExternalOpenPolicy: 明确确认后 fake launcher 应精确调用一次");
+    }
+
+    private sealed class FakeExternalLauncher : IExternalLauncher
+    {
+        internal List<string> Targets { get; } = new();
+        public void Launch(string target) => Targets.Add(target);
+    }
+
+    private static void RunCrashDiagnosticTests(string tempRoot)
+    {
+        string releaseRoot = Path.Combine(tempRoot, "diagnostic-release-root");
+        string diagnostics = Path.Combine(releaseRoot, "diagnostics");
+        Directory.CreateDirectory(diagnostics);
+        string legacy = Path.Combine(tempRoot, "legacy-clipora-crash.txt");
+        File.WriteAllText(legacy, "legacy-sensitive");
+
+        for (int index = 0; index < 25; index++)
+        {
+            string dummy = Path.Combine(diagnostics, $"diagnostic-dummy-{index:D2}.json");
+            File.WriteAllText(dummy, "{}");
+            File.SetLastWriteTimeUtc(dummy, DateTime.UtcNow.AddMinutes(-index));
+        }
+        string expired = Path.Combine(diagnostics, "diagnostic-expired.json");
+        File.WriteAllText(expired, "{}");
+        File.SetLastWriteTimeUtc(expired, DateTime.UtcNow.AddDays(-8));
+
+        var release = new CrashDiagnosticService(
+            releaseMode: true,
+            releaseRootOverride: releaseRoot,
+            legacyCrashPathOverride: legacy);
+        release.Initialize();
+        Assert(!File.Exists(legacy), "CrashDiagnostic: 固定旧 %TEMP% 日志应升级即删除");
+        Assert(!File.Exists(expired), "CrashDiagnostic: 7 天以上日志应删除");
+        Assert(Directory.GetFiles(diagnostics, "diagnostic-*").Length <= 20,
+            "CrashDiagnostic: Release 诊断应最多保留 20 份");
+
+        const string clipboardSentinel = "CLIPBOARD_SECRET_79F6";
+        const string userSentinel = "SensitiveUser_42A1";
+        string pathSentinel = "C:" + Path.DirectorySeparatorChar + "Users"
+            + Path.DirectorySeparatorChar + userSentinel
+            + Path.DirectorySeparatorChar + "private.txt";
+        var exception = new InvalidOperationException(
+            $"{clipboardSentinel} user={userSentinel} path={pathSentinel}");
+        string? releasePath = release.WriteException(exception, "SELFTEST_RELEASE_CRASH");
+        Assert(releasePath is not null && File.Exists(releasePath),
+            "CrashDiagnostic: Release 应写脱敏 JSON");
+        string releaseJson = File.ReadAllText(releasePath!);
+        Assert(!releaseJson.Contains(clipboardSentinel, StringComparison.Ordinal)
+            && !releaseJson.Contains(userSentinel, StringComparison.Ordinal)
+            && !releaseJson.Contains(pathSentinel, StringComparison.Ordinal)
+            && !releaseJson.Contains("Message", StringComparison.OrdinalIgnoreCase)
+            && !releaseJson.Contains("StackTrace", StringComparison.OrdinalIgnoreCase),
+            "CrashDiagnostic: Release JSON 不得泄露 sentinel、Message 或堆栈");
+        Assert(releaseJson.Contains("SELFTEST_RELEASE_CRASH", StringComparison.Ordinal)
+            && releaseJson.Contains("System.InvalidOperationException", StringComparison.Ordinal),
+            "CrashDiagnostic: Release JSON 应保留稳定错误码与异常类型");
+        Assert(Directory.GetFiles(diagnostics, "diagnostic-*").Length <= 20,
+            "CrashDiagnostic: 新写入后仍应最多保留 20 份");
+
+        string debugRoot = Path.Combine(tempRoot, "diagnostic-debug-root");
+        Directory.CreateDirectory(debugRoot);
+        var debug = new CrashDiagnosticService(releaseMode: false, developmentRootOverride: debugRoot);
+        debug.Initialize();
+        string? debugPath = debug.WriteException(exception, "SELFTEST_DEBUG_CRASH");
+        Assert(debugPath is not null
+            && File.ReadAllText(debugPath).Contains(clipboardSentinel, StringComparison.Ordinal),
+            "CrashDiagnostic: 合法 Debug 隔离根应保留完整诊断");
+
+        var invalidDebug = new CrashDiagnosticService(
+            releaseMode: false,
+            developmentRootOverride: "relative-dev-root");
+        Assert(invalidDebug.WriteException(exception, "INVALID_DEBUG_ROOT") is null,
+            "CrashDiagnostic: 无合法 Debug 根时不得落完整日志");
+    }
+
     // —— M4.4.2a 隐私自检 ——
 
     private static void RunPrivacyCapturePolicyTests()
     {
-        // paused → false
-        Assert(!PrivacyCapturePolicy.ShouldCapture(paused: true, foregroundProcessName: null, excludedApps: Array.Empty<string>(), systemExcluded: false),
-            "PrivacyCapturePolicy: paused=true 应返回 false");
+        Assert(PrivacyCapturePolicy.Decide(true, null, [], ClipboardExclusionState.Unknown, false)
+            == PrivacyCaptureDecision.Skip, "PrivacyCapturePolicy: pause 应第一优先级跳过");
+        Assert(PrivacyCapturePolicy.Decide(false, "notepad", [], ClipboardExclusionState.Excluded, false)
+            == PrivacyCaptureDecision.Skip, "PrivacyCapturePolicy: 系统排除应跳过");
+        Assert(PrivacyCapturePolicy.Decide(false, "notepad", [], ClipboardExclusionState.Unknown, false)
+            == PrivacyCaptureDecision.Retry, "PrivacyCapturePolicy: 系统 Unknown 首次应重试");
+        Assert(PrivacyCapturePolicy.Decide(false, "notepad", [], ClipboardExclusionState.Unknown, true)
+            == PrivacyCaptureDecision.Skip, "PrivacyCapturePolicy: 系统 Unknown 重试后应 fail-closed");
 
-        // systemExcluded → false
-        Assert(!PrivacyCapturePolicy.ShouldCapture(paused: false, foregroundProcessName: null, excludedApps: Array.Empty<string>(), systemExcluded: true),
-            "PrivacyCapturePolicy: systemExcluded=true 应返回 false");
+        Assert(PrivacyCapturePolicy.Decide(false, null, [], ClipboardExclusionState.Allowed, false)
+            == PrivacyCaptureDecision.Capture,
+            "PrivacyCapturePolicy: 无应用排除名单时单纯进程 Unknown 不阻断");
+        Assert(PrivacyCapturePolicy.Decide(false, null, ["notepad"], ClipboardExclusionState.Allowed, false)
+            == PrivacyCaptureDecision.Retry,
+            "PrivacyCapturePolicy: 有应用排除名单时进程 Unknown 首次应重试");
+        Assert(PrivacyCapturePolicy.Decide(false, null, ["notepad"], ClipboardExclusionState.Allowed, true)
+            == PrivacyCaptureDecision.Skip,
+            "PrivacyCapturePolicy: 有应用排除名单时进程 Unknown 重试后应跳过");
+        Assert(PrivacyCapturePolicy.Decide(false, "NOTEPAD", ["notepad"], ClipboardExclusionState.Allowed, false)
+            == PrivacyCaptureDecision.Skip, "PrivacyCapturePolicy: 排除匹配应大小写不敏感");
+        Assert(PrivacyCapturePolicy.Decide(false, "notepadplusplus", ["notepad"], ClipboardExclusionState.Allowed, false)
+            == PrivacyCaptureDecision.Capture, "PrivacyCapturePolicy: 子串不应误匹配");
+        Assert(PrivacyCapturePolicy.Decide(false, "chrome", ["notepad"], ClipboardExclusionState.Allowed, false)
+            == PrivacyCaptureDecision.Capture, "PrivacyCapturePolicy: 已知且未命中应捕获");
 
-        // 排除名单命中小写 → false
-        Assert(!PrivacyCapturePolicy.ShouldCapture(paused: false, foregroundProcessName: "notepad", excludedApps: new[] { "notepad", "chrome" }, systemExcluded: false),
-            "PrivacyCapturePolicy: foregroundProcessName 命中排除名单（同小写）应返回 false");
-
-        // 排除名单命中大小写不敏感 → false
-        Assert(!PrivacyCapturePolicy.ShouldCapture(paused: false, foregroundProcessName: "NOTEPAD", excludedApps: new[] { "notepad" }, systemExcluded: false),
-            "PrivacyCapturePolicy: foregroundProcessName 命中排除名单（大小写不敏感）应返回 false");
-
-        // 排除名单命中列表里多项中的一项 → false
-        Assert(!PrivacyCapturePolicy.ShouldCapture(paused: false, foregroundProcessName: "chrome", excludedApps: new[] { "notepad", "chrome", "explorer" }, systemExcluded: false),
-            "PrivacyCapturePolicy: foregroundProcessName 命中多元素名单中一项应返回 false");
-
-        // 非命中 → true
-        Assert(PrivacyCapturePolicy.ShouldCapture(paused: false, foregroundProcessName: "notepad", excludedApps: new[] { "chrome" }, systemExcluded: false),
-            "PrivacyCapturePolicy: foregroundProcessName 不在排除名单中应返回 true");
-
-        // foregroundProcessName==null 且名单非空 → true（fail-open）
-        Assert(PrivacyCapturePolicy.ShouldCapture(paused: false, foregroundProcessName: null, excludedApps: new[] { "notepad" }, systemExcluded: false),
-            "PrivacyCapturePolicy: foregroundProcessName==null（解析失败）应 fail-open 返回 true");
-
-        // 空名单 → true
-        Assert(PrivacyCapturePolicy.ShouldCapture(paused: false, foregroundProcessName: "notepad", excludedApps: Array.Empty<string>(), systemExcluded: false),
-            "PrivacyCapturePolicy: 排除名单为空应返回 true");
-
-        // 正常 → true
-        Assert(PrivacyCapturePolicy.ShouldCapture(paused: false, foregroundProcessName: "notepad", excludedApps: Array.Empty<string>(), systemExcluded: false),
-            "PrivacyCapturePolicy: 正常状态（未暂停、无排除、无标记）应返回 true");
-
-        // 暂停优先级最高（即使无排除标记）
-        Assert(!PrivacyCapturePolicy.ShouldCapture(paused: true, foregroundProcessName: null, excludedApps: Array.Empty<string>(), systemExcluded: false),
-            "PrivacyCapturePolicy: paused=true 应优先于其他条件返回 false");
-
-        // 子串不误伤
-        Assert(PrivacyCapturePolicy.ShouldCapture(paused: false, foregroundProcessName: "notepadplusplus", excludedApps: new[] { "notepad" }, systemExcluded: false),
-            "PrivacyCapturePolicy: 子串不应匹配（notepad vs notepadplusplus）");
+        var retryState = new ClipboardPrivacyRetryState();
+        retryState.Schedule(10);
+        Assert(retryState.TryConsume(10), "PrivacyCapturePolicy: 同一序列号应允许一次重试");
+        Assert(!retryState.TryConsume(10), "PrivacyCapturePolicy: 重试门闩只能消费一次");
+        retryState.Schedule(20);
+        Assert(!retryState.TryConsume(21), "PrivacyCapturePolicy: 序列号变化应放弃旧事件");
+        retryState.Schedule(30);
+        retryState.Cancel();
+        Assert(!retryState.TryConsume(30), "PrivacyCapturePolicy: Stop/Dispose 取消后不得回调");
     }
 
     private static void RunClipboardExclusionMarkerTests()
@@ -5388,6 +5491,10 @@ public static class DevSelfTest
         // 两者都有 → true（任一命中即排除）
         Assert(ClipboardExclusionMarker.IsExcluded(hasExcludeFormat: true, hasHistoryFlag: true, historyFlagValue: 1),
             "ClipboardExclusionMarker: 两个标记都有（但 history=1）应排除（Exclude 格式命中）");
+
+        Assert(ClipboardExclusionMarker.Evaluate(false, true, 0, historyFlagValueKnown: false)
+            == ClipboardExclusionState.Unknown,
+            "ClipboardExclusionMarker: history 格式存在但值不可读应为 Unknown");
     }
 
     private static void RunRunningAppsProviderTests()
@@ -6263,6 +6370,9 @@ public static class DevSelfTest
         // sentinel 不存在 → 应删除 payload 和 staging
         Assert(!File.Exists(fakeFile), "BKP-7: 未提交的 payload 应被删除");
         Assert(!Directory.Exists(stagingPath2), "BKP-7: 未提交的 staging 应被清理");
+
+        // 8. 真实恶意 ZIP / journal / SQLite 对抗套件（全部仅使用本次 selftest 临时目录）
+        BackupSecuritySelfTest.Run(dir, archivePath);
 
         // 清理
         try { File.Delete(archivePath); } catch { }

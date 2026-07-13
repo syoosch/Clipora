@@ -1069,6 +1069,29 @@ public partial class HistoryWindow : FluentWindow
         ShowHint("  打开失败", message);
     }
 
+    /// <summary>危险主动文件的显式确认；默认取消，且界面只显示文件名。</summary>
+    internal async void ShowDangerousFileOpenConfirmation(
+        ExternalOpenRequest request,
+        Action<ExternalOpenRequest> confirm)
+    {
+        var dialog = new ContentDialog(DialogHost)
+        {
+            Title = "打开可能不安全的文件",
+            Content = new System.Windows.Controls.TextBlock
+            {
+                Text = $"文件“{request.FileName}”可能会运行程序或更改系统。仅在确认来源可信时打开。",
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 420,
+            },
+            SecondaryButtonText = "仍要打开",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Close,
+        };
+
+        if (await dialog.ShowAsync() == ContentDialogResult.Secondary)
+            confirm(request);
+    }
+
     /// <summary>泛化瞬时提示：设置标题/详情文本，显示并启动 4 秒计时器。</summary>
     private void ShowHint(string title, string detail)
     {

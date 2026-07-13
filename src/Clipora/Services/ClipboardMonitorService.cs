@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using Clipora.Abstractions;
 using Clipora.Interop;
 using Clipora.Models;
@@ -19,6 +20,8 @@ public sealed class ClipboardMonitorService : IClipboardMonitor
     private readonly ISourceResolver _sourceResolver;
 
     private HwndSource? _source;
+    private DispatcherTimer? _privacyRetryTimer;
+    private readonly ClipboardPrivacyRetryState _privacyRetryState = new();
     public event EventHandler<ClipItem>? ClipCaptured;
     public event EventHandler<long>? ItemOverSized;
 
@@ -48,6 +51,7 @@ public sealed class ClipboardMonitorService : IClipboardMonitor
 
     public void Stop()
     {
+        CancelPendingPrivacyRetry();
         if (_source is null)
             return;
 
@@ -86,18 +90,47 @@ public sealed class ClipboardMonitorService : IClipboardMonitor
 
     private void OnClipboardUpdate()
     {
-        // Clipora 主动写回的数据可能触发不止一条更新消息；持久数据标记比“一次性布尔抑制”可靠。
+        CancelPendingPrivacyRetry();
+
+        // 暂停是第一道判断：暂停时不读取剪贴板标记、来源进程或系统排除格式。
+        if (_settings.Current.Paused)
+            return;
+
+        uint sequence = NativeMethods.GetClipboardSequenceNumber();
+        EvaluateAndCapture(sequence, isRetry: false);
+    }
+
+    private void EvaluateAndCapture(uint sequence, bool isRetry)
+    {
+        if (_source is null || _settings.Current.Paused)
+            return;
+
+        // Clipora 主动写回的数据可能触发不止一条更新消息；持久数据标记比一次性布尔可靠。
         if (ClipboardInternalWriteMarker.IsPresentOnClipboard())
             return;
 
-        // 隐私判定：暂停 / 系统排除标记 / 应用排除名单（纯函数，可测）
-        string? foregroundProcessName = _sourceResolver.GetForegroundProcessName();
-        bool systemExcluded = ReadSystemExclusion();
-        if (!PrivacyCapturePolicy.ShouldCapture(
-                paused: _settings.Current.Paused,
-                foregroundProcessName: foregroundProcessName,
-                excludedApps: _settings.Current.ExcludedApps,
-                systemExcluded: systemExcluded))
+        IReadOnlyCollection<string> excludedApps = _settings.Current.ExcludedApps;
+        string? foregroundProcessName = null;
+        if (excludedApps.Count > 0)
+        {
+            try { foregroundProcessName = _sourceResolver.GetForegroundProcessName(); }
+            catch { foregroundProcessName = null; }
+        }
+
+        ClipboardExclusionState systemExclusion = ReadSystemExclusion();
+        PrivacyCaptureDecision decision = PrivacyCapturePolicy.Decide(
+            paused: false,
+            foregroundProcessName,
+            excludedApps,
+            systemExclusion,
+            isRetry);
+
+        if (decision == PrivacyCaptureDecision.Retry)
+        {
+            SchedulePrivacyRetry(sequence);
+            return;
+        }
+        if (decision == PrivacyCaptureDecision.Skip)
         {
             return;
         }
@@ -113,6 +146,54 @@ public sealed class ClipboardMonitorService : IClipboardMonitor
         }
 
         StoreAndNotify(item);
+    }
+
+    private void SchedulePrivacyRetry(uint sequence)
+    {
+        CancelPendingPrivacyRetry();
+        if (_source is null)
+            return;
+
+        _privacyRetryState.Schedule(sequence);
+        _privacyRetryTimer = new DispatcherTimer(DispatcherPriority.Background, _source.Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(50),
+        };
+        _privacyRetryTimer.Tick += OnPrivacyRetryTick;
+        _privacyRetryTimer.Start();
+    }
+
+    private void OnPrivacyRetryTick(object? sender, EventArgs e)
+    {
+        DispatcherTimer? timer = _privacyRetryTimer;
+        if (timer is not null)
+        {
+            timer.Stop();
+            timer.Tick -= OnPrivacyRetryTick;
+        }
+        _privacyRetryTimer = null;
+
+        if (_source is null)
+        {
+            _privacyRetryState.Cancel();
+            return;
+        }
+
+        uint currentSequence = NativeMethods.GetClipboardSequenceNumber();
+        if (!_privacyRetryState.TryConsume(currentSequence))
+            return;
+        EvaluateAndCapture(currentSequence, isRetry: true);
+    }
+
+    private void CancelPendingPrivacyRetry()
+    {
+        if (_privacyRetryTimer is not null)
+        {
+            _privacyRetryTimer.Stop();
+            _privacyRetryTimer.Tick -= OnPrivacyRetryTick;
+            _privacyRetryTimer = null;
+        }
+        _privacyRetryState.Cancel();
     }
 
     private bool StoreAndNotify(ClipItem? item)
@@ -139,42 +220,57 @@ public sealed class ClipboardMonitorService : IClipboardMonitor
     /// <summary>
     /// 读取系统剪贴板排除标记（4.4.2b）。命中任一即排除：
     /// <c>ExcludeClipboardContentFromMonitorProcessing</c> 存在；或 <c>CanIncludeInClipboardHistory</c> 存在且 DWORD 值为 0。
-    /// 异常时 fail-open 返回 false（不排除）。
+    /// 异常或存在但无法解析时返回 Unknown，由调用方只重试一次后 fail-closed。
     /// </summary>
-    private static bool ReadSystemExclusion()
+    private static ClipboardExclusionState ReadSystemExclusion()
     {
         try
         {
             bool hasExcludeFormat = System.Windows.Clipboard.ContainsData("ExcludeClipboardContentFromMonitorProcessing");
-            bool hasHistoryFlag = System.Windows.Clipboard.ContainsData("CanIncludeInClipboardHistory");
-            int historyValue = 1; // 默认"允许包含在历史中"
+            if (hasExcludeFormat)
+                return ClipboardExclusionState.Excluded;
 
-            if (hasHistoryFlag)
+            bool hasHistoryFlag = System.Windows.Clipboard.ContainsData("CanIncludeInClipboardHistory");
+            if (!hasHistoryFlag)
+                return ClipboardExclusionState.Allowed;
+
+            int historyValue = 0;
+            bool historyValueKnown = false;
+
+            try
             {
-                try
+                var data = System.Windows.Clipboard.GetData("CanIncludeInClipboardHistory");
+                if (data is int i)
                 {
-                    var data = System.Windows.Clipboard.GetData("CanIncludeInClipboardHistory");
-                    if (data is int i)
-                        historyValue = i;
-                    else if (data is MemoryStream ms)
+                    historyValue = i;
+                    historyValueKnown = true;
+                }
+                else if (data is uint u && u <= int.MaxValue)
+                {
+                    historyValue = (int)u;
+                    historyValueKnown = true;
+                }
+                else if (data is MemoryStream ms)
+                {
+                    byte[] bytes = ms.ToArray();
+                    if (bytes.Length >= 4)
                     {
-                        byte[] bytes = ms.ToArray();
-                        if (bytes.Length >= 4)
-                            historyValue = BitConverter.ToInt32(bytes, 0);
+                        historyValue = BitConverter.ToInt32(bytes, 0);
+                        historyValueKnown = true;
                     }
                 }
-                catch
-                {
-                    // DWORD 读取失败 → 保留默认值 1（不排除，fail-open）
-                }
             }
+            catch { }
 
-            return ClipboardExclusionMarker.IsExcluded(hasExcludeFormat, hasHistoryFlag, historyValue);
+            return ClipboardExclusionMarker.Evaluate(
+                hasExcludeFormat,
+                hasHistoryFlag,
+                historyValue,
+                historyValueKnown);
         }
         catch
         {
-            // 剪贴板被占用/异常 → 不排除（fail-open）
-            return false;
+            return ClipboardExclusionState.Unknown;
         }
     }
 }

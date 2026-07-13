@@ -7,103 +7,78 @@
 [![最新版本](https://img.shields.io/github/v/release/syoosch/Clipora?display_name=tag)](https://github.com/syoosch/Clipora/releases/latest)
 [![下载量](https://img.shields.io/github/downloads/syoosch/Clipora/total)](https://github.com/syoosch/Clipora/releases)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![平台](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)](#-系统要求)
+[![平台](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)](#系统要求)
 
 [English](README.md) | **简体中文**
 
-> 常驻 Windows 的本地剪贴板历史工具 —— 自动记录你复制过的内容，随时找回、重用。**纯本地运行，数据不外传。**
+Clipora 是一款 Windows 本地剪贴板历史工具。它自动记录并整理你复制的内容，让常用信息能够被快速找回和重用，同时不会把剪贴板数据发送到设备之外。
 
-当前版本：**v0.4.2**（`0.x` 为 1.0 前的公开预览，功能可能随反馈调整） · [更新日志](CHANGELOG.md)
+当前版本：**v0.4.3** · [下载最新版安装包](https://github.com/syoosch/Clipora/releases/latest) · [阅读使用手册](manual/README.zh-CN.md)
 
-**[下载最新版安装包](https://github.com/syoosch/Clipora/releases/latest)**
+## 为什么选择 Clipora
 
-Clipora 自动监听并分类记录你复制的文字、图片、文件、链接、代码、颜色与富文本，按时间倒序、按 8 小时时间段可折叠分组浏览，支持搜索、打标签、置顶、回收站，点一下即可复制并自动粘贴回原窗口。界面采用 Win11 云母质感，跟随系统深浅色。
+- **快速找回复制内容**：搜索历史记录，按内容类型或标签筛选，并将重要内容置顶。
+- **不只保存文字**：支持富文本、链接、代码、颜色、图片、文件，以及直接拖入面板的内容。
+- **减少重复操作**：点击卡片即可复制并粘贴回原窗口，也可拖到其他应用，或使用可自定义的全局快捷键。
+- **数据由你控制**：Clipora 纯本地运行，支持暂停记录和应用排除，数据库与附件均保存在本机。
 
----
+## 核心能力
 
-## ✨ 主要功能
+### 捕获与整理
 
-- **自动捕获分类**：文字 / 富文本 / 链接 / 代码 / 颜色 / 图片 / 文件，自动识别类型；也可把文件、文字、图片直接拖入面板存入。
-- **时间段分组浏览**：时间倒序、全量加载（虚拟化滚动）；每天按凌晨 / 日间 / 晚间三段可折叠分组，默认只展开最新一段；置顶区固定在最顶部。卡片显示来源应用。
-- **搜索与筛选**：关键词搜索，按「类型」或「标签」筛选。
-- **标签管理**：给卡片贴已有标签，快捷新建；在设置里改名 / 删除 / 调色 / 排序。
-- **单条操作**：置顶、删除（进回收站可恢复）、贴标签、点击重用（复制并自动粘回原窗口）、从面板拖出到其他程序。
-- **窗口形态**：可窗口置顶、不占任务栏、自由调整大小；最小化为贴边悬浮条（鼠标靠近呼出）；关闭收起到托盘。
-- **全局快捷键**：默认 `Alt+V` 唤出面板；另有「纯文本粘贴」「顺序粘贴」等独立可改快捷键，带占用冲突检测。
-- **图片 OCR**：调用 Windows 本地 OCR（不联网），让图片里的文字也能被搜索到。
-- **自动清理**：按保存天数（1 / 3 / 7 / 30 / 永久，默认 3 天）自动清理，置顶项不清理。
-- **外观**：跟随系统 / 浅色 / 深色三种颜色模式；支持 Fluent / 液态玻璃即时切换、玻璃通透度调节，以及 Fluent 主题本地自定义背景。
-- **隐私与数据**：全程本地、无任何网络请求；可设置应用排除名单；支持备份导出 / 导入（`.clpbak`）。
+Clipora 会自动识别复制的文字、富文本、URL、代码、颜色、图片和文件，并在卡片上显示来源应用，按时间段折叠分组。你也可以把文件、文字、图片或富文本直接拖入面板，为内容添加标签、置顶重要项目，并从回收站恢复误删内容。
 
-> 说明：便签外观、强调色自定义和应用内中英文切换仍为后续版本计划。
+### 查找与重用
 
----
+通过关键词、内容类型或标签筛选历史记录；Windows 本地 OCR 还能让图片中的文字参与搜索。点击卡片可复制并按设置自动粘贴回之前的窗口，也可以把支持的内容拖到其他应用。HTTP/HTTPS 链接和普通文件可以从卡片打开，可能主动执行的文件会先要求确认。
 
-## 💻 系统要求
+### 快捷工作流
 
-- Windows 10（version 2004 / build 19041 及以上）或 Windows 11
-- x64 架构
-- **无需单独安装 .NET** —— 安装包为自包含单文件，已捆绑运行时
+默认按 `Alt+V` 打开面板，按 `Ctrl+Shift+V` 以纯文本粘贴；需要逐条粘贴一组内容时，可为顺序粘贴设置专用快捷键。Clipora 支持开机启动、托盘常驻、窗口置顶，以及最小化为贴边悬浮条，减少寻找窗口的步骤。
 
----
+### 数据与隐私
 
-## 📦 安装
+你可以设置历史保留时间和单条大小上限，通过带校验的迁移流程调整数据目录，暂停被动捕获，或排除指定应用。备份可以导出并合并回现有历史。数据库、附件和备份文件目前均未加密；保存敏感内容前请阅读[隐私说明](PRIVACY.md)。
 
-1. 打开[最新版发布页面](https://github.com/syoosch/Clipora/releases/latest)，下载 `Clipora-0.4.2-setup.exe`。
-2. 双击运行。安装包为 **per-user（无需管理员权限）**，默认安装到当前用户目录。
-3. 当前版本**未做代码签名**，Windows SmartScreen 可能提示「已保护你的电脑」：点击 **「更多信息」→「仍要运行」** 即可（这是未签名应用的正常提示，安装包不联网、不上传任何数据）。
+## 快速上手
 
-**卸载**：从开始菜单「卸载 Clipora」或系统「设置 → 应用」卸载。若卸载时 Clipora 仍在运行（最小化到托盘也算），会弹窗提示并在你确认后彻底关闭再卸载。**卸载默认保留你的剪贴板数据**，重装可继续使用；只有在卸载时主动勾选「同时删除所有数据」才会清除。
+1. 安装 Clipora，并让它在托盘中保持运行。
+2. 像平常一样复制文字、图片或文件，Clipora 会将其记录为卡片。
+3. 按 `Alt+V` 打开面板，通过搜索、筛选、标签或置顶找到需要的内容。
+4. 点击卡片重用内容，或将卡片拖入其他应用。
 
----
+备份、存储、隐私、窗口行为和故障排查请查看[使用手册](manual/README.zh-CN.md)。
 
-## 🚀 快速上手
+## 系统要求
 
-1. 复制任意内容（文字、截图、文件…）—— Clipora 自动记录为一张卡片。
-2. 按 `Alt+V` 唤出面板，浏览历史。
-3. **点击卡片** = 复制该内容并自动粘贴回你刚才的窗口。
-4. 悬停卡片显示置顶 / 删除 / 标签按钮；标题栏最左按钮展开搜索与筛选。
-5. 进入设置可调整保存天数、数据位置、单条大小上限、外观、快捷键、隐私排除名单、备份等。
+- Windows 10 version 2004 / build 19041 及以上，或 Windows 11
+- x64 处理器
+- 无需单独安装 .NET，安装包已包含所需运行时
 
----
+## 安装
 
-## 🔒 数据与隐私
+1. 打开[最新发布页面](https://github.com/syoosch/Clipora/releases/latest)。
+2. 下载并运行 `Clipora-0.4.3-setup.exe`。安装范围为当前用户，不需要管理员权限。
+3. 当前安装包未做代码签名。若 Windows SmartScreen 出现提示，请选择“更多信息”，核对 Release 中的文件名和校验值；确认文件可信后再选择“仍要运行”。
 
-- **纯本地**：剪贴板数据只保存在你的电脑上，应用全程不联网、不上传。
-- **数据位置**：默认 `%LOCALAPPDATA%\Clipora`；安装版可在设置里自定义并安全迁移（复制 → 校验 → 原子切换，失败回退旧目录，绝不自动合并或删除）。
-- **单条大小上限**：默认 25MB，超限提示且不存入。
-- 尊重系统「排除剪贴板历史」标记。
+## 文档
 
----
+- [使用手册](manual/README.zh-CN.md)
+- [隐私说明](PRIVACY.md)
+- [更新日志](CHANGELOG.md)
+- [安全策略](SECURITY.md)
+- [贡献指南](CONTRIBUTING.md)
 
-## 🛠 技术栈
+## 开发与贡献
 
-.NET 10 · WPF · [WPF-UI](https://github.com/lepoco/wpfui) · SQLite
-
-## 🧑‍💻 从源码构建
+Clipora 使用 .NET 10、WPF、WPF-UI 和 SQLite。开发版必须通过 `scripts/start-dev.ps1` 启动，以确保使用仓库内的隔离数据目录。
 
 ```powershell
-# 开发运行（隔离数据目录，不碰正式数据）
 powershell -ExecutionPolicy Bypass -File scripts/start-dev.ps1 -Build
-
-# 编译
-dotnet build src/Clipora
-
-# 发布 + 打安装包（需安装 Inno Setup 6）
-powershell -ExecutionPolicy Bypass -File scripts/publish.ps1
-powershell -ExecutionPolicy Bypass -File scripts/build-installer.ps1
 ```
 
-> 开发版必须经 `scripts/start-dev.ps1` 启动（会设置 `CLIPORA_DATA_DIR` 指向仓库内 `.dev-data` 隔离目录），切勿直接运行 Debug exe 以免误触正式数据。
+提交 Pull Request 前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。安全漏洞请按 [SECURITY.md](SECURITY.md) 私下报告，不要创建公开 Issue。
 
-## 🤝 参与贡献与安全报告
+## 许可证
 
-- 提交 Pull Request 前请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
-- Bug 和功能建议请使用 GitHub 的结构化 Issue 表单；不要在 Issue 中附带私人剪贴板内容或个人文件。
-- 安全漏洞请按 [SECURITY.md](SECURITY.md) 私下报告，不要创建公开 Issue。
-
----
-
-## 📌 版本说明
-
-采用语义化版本 SemVer（`MAJOR.MINOR.PATCH`）。`0.x` 为 1.0 前公开预览，功能完整稳定的首个正式版将为 `1.0.0`。版本号显示在设置页底部。
+Clipora 使用 [MIT License](LICENSE) 发布。

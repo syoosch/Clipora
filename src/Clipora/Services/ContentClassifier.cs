@@ -146,6 +146,43 @@ public sealed class ContentClassifier : IContentClassifier
         return TryClassifyRichText(dataObject, sourceApp: null);
     }
 
+    /// <summary>
+    /// 以显式来源应用复用系统剪贴板的文本/富文本优先级；仅供确定性 selftest，
+    /// 避免语义测试受当前桌面 OpenClipboard 竞争影响。
+    /// </summary>
+    internal ClipItem? ClassifyClipboardDataForTest(IDataObject dataObject, string? sourceApp)
+    {
+        ArgumentNullException.ThrowIfNull(dataObject);
+
+        string? text = TryGetText(dataObject, DataFormats.UnicodeText)
+            ?? TryGetText(dataObject, DataFormats.Text)
+            ?? TryGetText(dataObject, DataFormats.StringFormat);
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            string trimmed = text.Trim();
+            if (IsUrlOnly(trimmed))
+                return CreateTextItem(ClipType.Url, trimmed, sourceApp);
+            if (TryNormalizeColorCode(trimmed, out string color))
+                return CreateTextItem(ClipType.Color, color, sourceApp);
+            if (IsKnownCodeEditor(sourceApp) && LooksLikeEditorCode(trimmed))
+                return CreateTextItem(ClipType.Code, text, sourceApp);
+        }
+
+        string? rtf = TryGetText(dataObject, DataFormats.Rtf);
+        string? html = TryGetText(dataObject, DataFormats.Html);
+        if (!string.IsNullOrWhiteSpace(rtf) || !string.IsNullOrWhiteSpace(html))
+        {
+            string plainText = text ?? ExtractRichText(rtf, html);
+            return CreateRichTextItem(rtf, html, plainText, sourceApp);
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+
+        ClipType type = DetectTextType(text);
+        return CreateTextItem(type, text, sourceApp);
+    }
+
     private ClipItem? TryClassifyPlainTextOverride(string? sourceApp)
     {
         string? text = TryGetText(TextDataFormat.UnicodeText)
