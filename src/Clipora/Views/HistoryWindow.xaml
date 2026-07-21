@@ -32,9 +32,13 @@
                     Background="Transparent" BorderThickness="0" Padding="0">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
-                        <Border Style="{DynamicResource CliporaCard}">
-                            <ContentPresenter />
-                        </Border>
+                        <ContentControl Style="{DynamicResource CliporaCard}"
+                                        Content="{TemplateBinding Content}"
+                                        ContentTemplate="{TemplateBinding ContentTemplate}"
+                                        ContentTemplateSelector="{TemplateBinding ContentTemplateSelector}"
+                                        ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                                        HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                        VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
                     </ControlTemplate>
                 </Button.Template>
                 <StackPanel>
@@ -99,7 +103,8 @@
                             </StackPanel>
                         </Grid>
                     </Grid>
-                    <Image Source="{Binding Thumbnail}"
+                    <Image x:Name="ImagePreviewThumbnail"
+                           Source="{Binding Thumbnail}"
                            MaxHeight="96" MaxWidth="200" Stretch="Uniform"
                            HorizontalAlignment="Left" Margin="0,8,0,0"
                            common:RoundImage.Radius="8"
@@ -433,10 +438,13 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Style="{DynamicResource CliporaCard}">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="Center" />
-                        </Border>
+                        <ContentControl Style="{DynamicResource CliporaCard}"
+                                        Content="{TemplateBinding Content}"
+                                        ContentTemplate="{TemplateBinding ContentTemplate}"
+                                        ContentTemplateSelector="{TemplateBinding ContentTemplateSelector}"
+                                        ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                                        HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                        VerticalContentAlignment="Center" />
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -2122,15 +2130,15 @@
                     </StackPanel>
 
                     <!-- 其余分类暂用占位卡 -->
-                    <Border x:Name="SettingsGenericBody"
-                            Visibility="Collapsed"
-                            Margin="6,2,14,4"
-                            Style="{StaticResource CliporaCard}">
+                    <ContentControl x:Name="SettingsGenericBody"
+                                    Visibility="Collapsed"
+                                    Margin="6,2,14,0"
+                                    Style="{StaticResource CliporaCard}">
                         <TextBlock Text="该分类的具体选项将在后续小步接入。"
                                    TextWrapping="Wrap"
                                    FontSize="13"
                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                    </Border>
+                    </ContentControl>
                     </StackPanel>
                 </Grid>
             </ScrollViewer>
@@ -2427,8 +2435,8 @@
 
         <Popup x:Name="ImagePreviewPopup"
                AllowsTransparency="True"
-               Placement="Mouse"
-               HorizontalOffset="20" VerticalOffset="10"
+               Placement="Custom"
+               StaysOpen="True"
                IsHitTestVisible="False">
             <Border x:Name="ImagePreviewBorder"
                     CornerRadius="10"

@@ -12,7 +12,9 @@
 
     <!-- 常用内 / 外边距 -->
     <Thickness x:Key="CardPadding">12,10,12,10</Thickness>
-    <Thickness x:Key="ListItemMargin">0,0,14,4</Thickness>
+    <!-- 卡片右侧滚动条预留；4 DIP 纵向间距由 CliporaCard 模板内部承载，
+         才能把其中 3 DIP 作为稳定 hover 保留带。 -->
+    <Thickness x:Key="ListItemMargin">0,0,14,0</Thickness>
     <Thickness x:Key="PanelPadding">12</Thickness>
 
     <!-- 圆角：卡片偏大、窗口偏大、chips 胶囊 -->

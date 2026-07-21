@@ -76,11 +76,8 @@ public partial class HistoryWindow : FluentWindow
     private HotkeyAction? _recordingAction;
     private DispatcherTimer? _recordingTimer;
 
-    // 图片悬停放大预览
-    private DispatcherTimer? _imagePreviewTimer;
-    private CancellationTokenSource? _imagePreviewCts;
-    private FrameworkElement? _previewTarget; // 代替 Popup.PlacementTarget（Placement="Mouse" 不读它）
-    private DispatcherTimer? _previewCloseMonitor; // Popup 打开后轮询光标位置，绕过 WS_EX_LAYERED 窗口的鼠标事件丢失
+    // 图片悬停放大预览：意图、滚动隔离、解码和 Popup 生命周期集中到独立控制器。
+    private readonly ImagePreviewController _imagePreview;
 
     /// <summary>为 true 时允许真正关闭（退出应用）；否则关闭=隐藏到托盘。</summary>
     public bool AllowClose { get; set; }
@@ -125,10 +122,18 @@ public partial class HistoryWindow : FluentWindow
         set => SetValue(FilterAnimatedHorizontalOffsetProperty, value);
     }
 
-    public HistoryWindow(ISettingsService settings)
+    public HistoryWindow(ISettingsService settings, IImagePreviewLoader imagePreviewLoader)
     {
         _settings = settings;
+        ArgumentNullException.ThrowIfNull(imagePreviewLoader);
         InitializeComponent();
+        _imagePreview = new ImagePreviewController(
+            this,
+            ItemsList,
+            ImagePreviewPopup,
+            ImagePreviewBorder,
+            PreviewFullImage,
+            imagePreviewLoader);
 
         System.Version? asmVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
         VersionText.Text = asmVersion is null
@@ -143,18 +148,6 @@ public partial class HistoryWindow : FluentWindow
             _windowPlacementSaveTimer.Stop();
             SaveWindowPlacement();
         };
-        _imagePreviewTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(220),
-        };
-        _imagePreviewTimer.Tick += OnImagePreviewTimerTick;
-
-        _previewCloseMonitor = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(150),
-        };
-        _previewCloseMonitor.Tick += OnPreviewCloseMonitorTick;
-
         RestoreWindowPlacement();
         Topmost = settings.Current.AlwaysOnTop;
         ShowInTaskbar = settings.Current.ShowInTaskbar;
@@ -166,9 +159,21 @@ public partial class HistoryWindow : FluentWindow
         });
         AlwaysOnTopButton.IsChecked = Topmost;
         UpdateAlwaysOnTopToolTip();
-        LocationChanged += (_, _) => QueueWindowPlacementSave();
-        SizeChanged += (_, _) => QueueWindowPlacementSave();
-        PreviewMouseDown += (_, _) => _scroller.CancelAll();
+        LocationChanged += (_, _) =>
+        {
+            QueueWindowPlacementSave();
+            _imagePreview.NotifyWindowGeometryChanged();
+        };
+        SizeChanged += (_, _) =>
+        {
+            QueueWindowPlacementSave();
+            _imagePreview.NotifyWindowGeometryChanged();
+        };
+        // handledEventsToo=true：按钮、滚动条等控件即使提前标记事件，也必须先取消预览。
+        AddHandler(
+            Mouse.PreviewMouseDownEvent,
+            new MouseButtonEventHandler(OnWindowPreviewMouseDown),
+            handledEventsToo: true);
     }
 
     /// <summary>
@@ -181,11 +186,12 @@ public partial class HistoryWindow : FluentWindow
         base.OnSourceInitialized(e);
 
         IntPtr handle = new WindowInteropHelper(this).Handle;
-        HwndSource.FromHwnd(handle)?.AddHook(KeepBackdropActiveHook);
+        HwndSource.FromHwnd(handle)?.AddHook(WindowMessageHook);
     }
 
-    private static IntPtr KeepBackdropActiveHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    private IntPtr WindowMessageHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        _imagePreview.HandleWindowMessage(msg);
         if (msg != NativeMethods.WM_NCACTIVATE)
             return IntPtr.Zero;
 
@@ -197,6 +203,7 @@ public partial class HistoryWindow : FluentWindow
     protected override void OnClosing(CancelEventArgs e)
     {
         _scroller.CancelAll();
+        _imagePreview.NotifyWindowLifecycleEnd();
         _windowPlacementSaveTimer.Stop();
 
         SaveWindowPlacement();
@@ -212,6 +219,12 @@ public partial class HistoryWindow : FluentWindow
 
         e.Cancel = true;
         HandleCloseRequest();
+    }
+
+    private void OnWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _scroller.CancelAll();
+        _imagePreview.NotifyPointerInteraction();
     }
 
     private void Minimize_Click(object sender, RoutedEventArgs e)
@@ -738,6 +751,9 @@ public partial class HistoryWindow : FluentWindow
 
     private void VerticalScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
+        if (ReferenceEquals(sender, ItemsList))
+            _imagePreview.NotifyScrollInput();
+
         ScrollViewer? scrollViewer = sender switch
         {
             ScrollViewer direct => direct,
@@ -756,7 +772,11 @@ public partial class HistoryWindow : FluentWindow
     private void BeginSmoothVerticalScroll(ScrollViewer scrollViewer, int wheelDelta) =>
         _scroller.GlideBy(new ScrollViewerSurface(scrollViewer), wheelDelta);
 
-    private void Root_DragEnter(object sender, DragEventArgs e) => UpdateExternalDropState(e);
+    private void Root_DragEnter(object sender, DragEventArgs e)
+    {
+        _imagePreview.NotifyPointerInteraction();
+        UpdateExternalDropState(e);
+    }
 
     private void Root_DragOver(object sender, DragEventArgs e) => UpdateExternalDropState(e);
 
@@ -1154,49 +1174,14 @@ public partial class HistoryWindow : FluentWindow
 
     private void Thumbnail_MouseEnter(object sender, MouseEventArgs e)
     {
-        if (sender is not FrameworkElement fe || fe.DataContext is not ClipItemViewModel vm)
-            return;
-        if (!vm.HasThumbnail || string.IsNullOrEmpty(vm.PreviewImagePath))
-            return;
-
-        CancelImagePreview();
-        _imagePreviewCts = new CancellationTokenSource();
-        _previewTarget = fe;
-        _imagePreviewTimer!.Start();
+        if (sender is FrameworkElement target)
+            _imagePreview.HandleThumbnailEnter(target);
     }
 
     private void Thumbnail_MouseLeave(object sender, MouseEventArgs e)
     {
-
-        // Popup 打开后：MouseLeave 因 WS_EX_LAYERED 窗口干扰完全不可靠
-        // （刚打开时虚假触发，用户真移开时反而不触发）。
-        // 此时由 _previewCloseMonitor + Deactivated 负责关闭，不处理 MouseLeave。
-        if (ImagePreviewPopup.IsOpen)
-        {
-            return;
-        }
-
-        // Popup 未打开：检测 CliporaCard 悬停上浮动画（3px）导致的虚假 Leave。
-        if (sender is FrameworkElement fe)
-        {
-            Point pos = e.GetPosition(fe);
-            const double tolerance = 4.0;
-            if (pos.X >= -tolerance && pos.X <= fe.ActualWidth + tolerance &&
-                pos.Y >= -tolerance && pos.Y <= fe.ActualHeight + tolerance)
-            {
-                return;
-            }
-        }
-
-        CancelImagePreview();
-    }
-
-    private void CancelImagePreview()
-    {
-        _imagePreviewTimer!.Stop();
-        _imagePreviewCts?.Cancel();
-        _imagePreviewCts = null;
-        HideImagePreview();
+        if (sender is FrameworkElement target)
+            _imagePreview.HandleThumbnailLeave(target);
     }
 
     /// <summary>分组标题点击 → 切换展开/折叠。</summary>
@@ -1267,6 +1252,7 @@ public partial class HistoryWindow : FluentWindow
     /// </summary>
     private void ItemsList_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
+        _imagePreview.NotifyScrollChanged(e.HorizontalChange, e.VerticalChange);
         _historyScrollViewer ??= e.OriginalSource as ScrollViewer;
 
         if (!_settings.Current.ShowBackToTop)
@@ -1328,142 +1314,6 @@ public partial class HistoryWindow : FluentWindow
         // 在同一面上发起 GlideTo 会替换该面正在进行的滚轮滑动，等价于原先的两次 Stop。
         double durationMs = Math.Clamp(260 + Math.Log10(1 + startOffset) * 55, 320, 520);
         _scroller.GlideTo(new ScrollViewerSurface(sv), 0, ScrollGlide.Wheel.WithDuration(durationMs));
-    }
-
-    private async void OnImagePreviewTimerTick(object? sender, EventArgs e)
-    {
-        _imagePreviewTimer!.Stop();
-
-        CancellationTokenSource? cts = _imagePreviewCts;
-        if (cts is null || cts.IsCancellationRequested)
-            return;
-
-        FrameworkElement? fe = _previewTarget;
-        if (fe is null || fe.DataContext is not ClipItemViewModel vm)
-            return;
-
-        string refPath = vm.PreviewImagePath!;
-        BitmapSource? fullImage = await LoadFullImageAsync(refPath, cts.Token);
-
-        if (cts.IsCancellationRequested || fullImage is null)
-            return;
-
-        PreviewFullImage.Source = fullImage;
-        ShowImagePreview();
-    }
-
-    private static async Task<BitmapSource?> LoadFullImageAsync(string path, CancellationToken ct)
-    {
-        // 用专用 STA 线程加载 BitmapImage（满足 WPF 成像 STA 要求），
-        // 避免阻塞 UI 线程，同时支持取消。
-        var tcs = new TaskCompletionSource<BitmapSource?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                if (ct.IsCancellationRequested)
-                {
-                    tcs.TrySetCanceled(ct);
-                    return;
-                }
-
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.UriSource = new Uri(path);
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.EndInit();
-                bmp.Freeze();
-                tcs.TrySetResult(bmp);
-            }
-            catch (Exception ex)
-            {
-                tcs.TrySetException(ex);
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.IsBackground = true;
-        thread.Start();
-
-        try
-        {
-            using (ct.Register(() => tcs.TrySetCanceled(ct)))
-            {
-                return await tcs.Task.ConfigureAwait(false);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            return null;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private void ShowImagePreview()
-    {
-        ImagePreviewBorder.Opacity = 0;
-        ImagePreviewPopup.IsOpen = true;
-
-        // Popup 打开后 MouseLeave 不再可靠（WS_EX_LAYERED 窗口干扰）。
-        // 启动光标位置轮询作为关闭手段。
-        _previewCloseMonitor!.Start();
-
-        var animation = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150))
-        {
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-        };
-        ImagePreviewBorder.BeginAnimation(OpacityProperty, animation, HandoffBehavior.SnapshotAndReplace);
-    }
-
-    private void HideImagePreview()
-    {
-        _previewCloseMonitor!.Stop();
-        ImagePreviewPopup.IsOpen = false;
-        PreviewFullImage.Source = null;
-    }
-
-    /// <summary>Popup 打开期间定期检查光标是否已远离缩略图（用屏幕绝对坐标绕过 WS_EX_LAYERED 窗口干扰）。</summary>
-    private void OnPreviewCloseMonitorTick(object? sender, EventArgs e)
-    {
-        if (!ImagePreviewPopup.IsOpen || _previewTarget is null)
-            return;
-
-        NativeMethods.GetCursorPos(out NativeMethods.POINT cursorPt);
-
-        double scaleX = 1.0;
-        double scaleY = 1.0;
-        PresentationSource? source = PresentationSource.FromVisual(_previewTarget);
-        if (source?.CompositionTarget is not null)
-        {
-            double transformScaleX = source.CompositionTarget.TransformToDevice.M11;
-            double transformScaleY = source.CompositionTarget.TransformToDevice.M22;
-            if (transformScaleX > 0)
-                scaleX = transformScaleX;
-            if (transformScaleY > 0)
-                scaleY = transformScaleY;
-        }
-
-        // PointToScreen 与 GetCursorPos 同属屏幕坐标；ActualWidth/Height 与 margin 是 DIP，
-        // 比较前必须把尺寸扩展到物理像素，避免高 DPI 下安全区小于真实缩略图。
-        Point screenPos = _previewTarget.PointToScreen(new Point(0, 0));
-        const double marginDip = 60.0;
-        double left = screenPos.X - marginDip * scaleX;
-        double top = screenPos.Y - marginDip * scaleY;
-        double right = screenPos.X + _previewTarget.ActualWidth * scaleX + marginDip * scaleX;
-        double bottom = screenPos.Y + _previewTarget.ActualHeight * scaleY + marginDip * scaleY;
-
-        if (cursorPt.X < left || cursorPt.X > right || cursorPt.Y < top || cursorPt.Y > bottom)
-        {
-            CancelImagePreview();
-        }
-    }
-
-    /// <summary>用户点击其他窗口/桌面时关闭预览。</summary>
-    private void OnWindowDeactivatedForPreview(object? sender, EventArgs e)
-    {
-        CancelImagePreview();
     }
 
     private static T? FindVisualAncestor<T>(DependencyObject? source)
@@ -1657,7 +1507,7 @@ public partial class HistoryWindow : FluentWindow
         {
             bool isExcluded = excludedSet.Contains(app.ProcessName);
 
-            var itemBorder = new Border
+            var itemCard = new ContentControl
             {
                 Style = (System.Windows.Style)FindResource("CliporaCard"),
             };
@@ -1702,18 +1552,18 @@ public partial class HistoryWindow : FluentWindow
                 grid.Children.Add(checkBlock);
             }
 
-            itemBorder.Child = grid;
-            itemBorder.Tag = app;
+            itemCard.Content = grid;
+            itemCard.Tag = app;
 
             if (isExcluded)
-                itemBorder.Opacity = 0.45;
+                itemCard.Opacity = 0.45;
 
-            listBox.Items.Add(itemBorder);
+            listBox.Items.Add(itemCard);
         }
 
         listBox.SelectionChanged += (_, _) =>
         {
-            if (listBox.SelectedItem is Border { Tag: RunningAppInfo selected })
+            if (listBox.SelectedItem is ContentControl { Tag: RunningAppInfo selected })
                 selectedApp = selected;
             else
                 selectedApp = null;

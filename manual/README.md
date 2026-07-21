@@ -2,7 +2,7 @@
 
 **English** | [简体中文](README.zh-CN.md) · [Back to the project page](../README.md)
 
-This manual applies to Clipora v0.4.3. The current application interface is Simplified Chinese; English names below describe the corresponding controls and settings.
+This manual applies to Clipora v0.4.4. The current application interface is Simplified Chinese; English names below describe the corresponding controls and settings.
 
 ## Contents
 
@@ -21,7 +21,7 @@ This manual applies to Clipora v0.4.3. The current application interface is Simp
 
 ## Install and first run
 
-1. Open the [latest release](https://github.com/syoosch/Clipora/releases/latest) and download `Clipora-0.4.3-setup.exe`.
+1. Open the [latest release](https://github.com/syoosch/Clipora/releases/latest) and download `Clipora-0.4.4-setup.exe`.
 2. Run the installer. Clipora installs for the current Windows user and does not require administrator rights.
 3. The installer is currently unsigned. If SmartScreen appears, choose **More info**, compare the installer name and SHA-256 with the release, and continue only if the file is trusted.
 4. Keep Clipora running in the tray so it can monitor new clipboard changes.

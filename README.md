@@ -13,7 +13,7 @@
 
 Clipora is a local clipboard-history tool for Windows. It records the content you copy, keeps it organized, and lets you find and reuse it without sending clipboard data off your device.
 
-Current version: **v0.4.3** · [Download the latest installer](https://github.com/syoosch/Clipora/releases/latest) · [Read the user manual](manual/README.md)
+Current version: **v0.4.4** · [Download the latest installer](https://github.com/syoosch/Clipora/releases/latest) · [Read the user manual](manual/README.md)
 
 ## Why Clipora
 
@@ -59,7 +59,7 @@ For backup, storage, privacy, window, and troubleshooting instructions, see the 
 ## Installation
 
 1. Open the [latest release](https://github.com/syoosch/Clipora/releases/latest).
-2. Download `Clipora-0.4.3-setup.exe` and run it. Installation is per-user and does not require administrator rights.
+2. Download `Clipora-0.4.4-setup.exe` and run it. Installation is per-user and does not require administrator rights.
 3. The installer is not code-signed. If Windows SmartScreen appears, choose **More info**, verify the publisher context and checksum from the release, then choose **Run anyway** if you trust the file.
 
 ## Documentation

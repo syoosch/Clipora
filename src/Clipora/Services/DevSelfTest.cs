@@ -7,6 +7,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -878,6 +879,12 @@ public static class DevSelfTest
             // —— 平滑滚动重构（行为保持）：缓动/滚动编排/回到顶部滞回 ——
             RunScrollingTests();
 
+            // —— CliporaCard 固定命中层：视觉上浮后原始底边仍可命中 ——
+            RunCliporaCardHitTest();
+
+            // —— 图片大预览：悬停状态、滚动隔离、稳定定位与有界 STA 解码 ——
+            RunImagePreviewTests(dir);
+
             // —— 时间段分组策略重构（行为保持）：段键/默认展开/捕获展开/置顶/点击翻转 ——
             RunGroupingTests();
 
@@ -915,6 +922,7 @@ public static class DevSelfTest
 
     private static void RunImageThumbnailContainerTests(AppPaths paths, ISettingsService settings)
     {
+        using var imagePreviewLoader = new ImagePreviewLoader();
         string thumbnailPath = Path.Combine(paths.ThumbsDir, "recycled-thumbnail.png");
         BitmapSource bitmap = BitmapSource.Create(
             2, 2, 96, 96, PixelFormats.Bgra32, null,
@@ -942,7 +950,7 @@ public static class DevSelfTest
             CreatedAt = DateTime.UtcNow,
         });
         var items = new ObservableCollection<ClipItemViewModel> { textVm };
-        var window = new HistoryWindow(settings)
+        var window = new HistoryWindow(settings, imagePreviewLoader)
         {
             AllowClose = true,
             ShowInTaskbar = false,
@@ -991,7 +999,7 @@ public static class DevSelfTest
 
         var monitor = new SelfTestMonitor();
         var mainVm = new MainViewModel(captureClips, captureTags, monitor, new ClipWriter());
-        var captureWindow = new HistoryWindow(settings)
+        var captureWindow = new HistoryWindow(settings, imagePreviewLoader)
         {
             DataContext = mainVm,
             AllowClose = true,
@@ -4570,6 +4578,17 @@ public static class DevSelfTest
             Assert(surface.Offset == 0, "GlideTo(.,0) 到时应精确回到顶部");
         }
 
+        // 快速滚动回收图片卡片后，预览监视器必须把脱离 PresentationSource 视为失效，
+        // 不得继续调用 PointToScreen 并让 Dispatcher 未捕获异常终止进程。
+        {
+            var detachedTarget = new Border { Width = 120, Height = 80 };
+            Assert(!ImagePreviewScreenGeometry.TryGetElementBounds(
+                    detachedTarget,
+                    marginDip: 4,
+                    out _),
+                "脱离 PresentationSource 的预览目标应 fail closed，不得计算屏幕坐标");
+        }
+
         // —— 4. 回到顶部显隐滞回真值表 ——
         double up = 0, down = 0;
         Assert(BackToTopVisibilityPolicy.Decide(-40, 500, false, ref up, ref down) == BackToTopAction.None,
@@ -4593,6 +4612,543 @@ public static class DevSelfTest
         BackToTopAction topAction = BackToTopVisibilityPolicy.Decide(-10, 0, true, ref up, ref down);
         Assert(up == 0 && down == 0, "触顶应清零两个累加器");
         Assert(topAction == BackToTopAction.Hide, "触顶（可见）应收起");
+    }
+
+    private static void RunCliporaCardHitTest()
+    {
+        Style cardStyle = Application.Current.FindResource("CliporaCard") as Style
+            ?? throw new InvalidOperationException("CliporaCard 样式不存在");
+        Assert(cardStyle.TargetType == typeof(ContentControl),
+            "CliporaCard 应以 ContentControl 承载固定命中层");
+
+        ContentControl CreateCard() => new()
+        {
+            Style = cardStyle,
+            Width = 120,
+            Margin = new Thickness(0),
+            Padding = new Thickness(0),
+            BorderThickness = new Thickness(0),
+            Content = new Border { Height = 40, Background = Brushes.White },
+        };
+
+        var firstCard = CreateCard();
+        var secondCard = CreateCard();
+        var stack = new StackPanel { Width = 120 };
+        stack.Children.Add(firstCard);
+        stack.Children.Add(secondCard);
+        stack.Measure(new Size(120, double.PositiveInfinity));
+        stack.Arrange(new Rect(0, 0, 120, stack.DesiredSize.Height));
+        firstCard.ApplyTemplate();
+        secondCard.ApplyTemplate();
+        stack.UpdateLayout();
+
+        var hitSurface = firstCard.Template.FindName("HoverHitSurface", firstCard) as Border;
+        var cardSurface = firstCard.Template.FindName("CardSurface", firstCard) as Border;
+        var retentionSurface = firstCard.Template.FindName("HoverRetentionSurface", firstCard) as Border;
+        Assert(hitSurface is not null && cardSurface is not null && retentionSurface is not null,
+            "CliporaCard 模板应包含固定卡片命中层、可移动视觉层与下边缘 hover 保留带");
+        Assert(hitSurface!.RenderTransform.Value.IsIdentity,
+            "CliporaCard 固定命中层不得应用位移");
+        Assert(cardSurface!.RenderTransform is TranslateTransform,
+            "CliporaCard 视觉层应使用 TranslateTransform");
+        Assert(Math.Abs(firstCard.ActualHeight - 44) < 0.01
+            && Math.Abs(secondCard.TranslatePoint(new Point(), stack).Y - 44) < 0.01,
+            "CliporaCard 应保持 40 DIP 卡片 + 4 DIP 原有间距，且相邻卡片不得重叠");
+
+        // 模板中的 Freezable 可能已被冻结；替换为等价本地变换来模拟悬停终态。
+        cardSurface.RenderTransform = new TranslateTransform(0, -3);
+        stack.UpdateLayout();
+
+        HitTestResult? bottomEdgeHit = VisualTreeHelper.HitTest(stack, new Point(60, 39.5));
+        Assert(bottomEdgeHit is not null && ReferenceEquals(bottomEdgeHit.VisualHit, hitSurface),
+            "CliporaCard 视觉上移 3 DIP 后，原始下边缘内侧仍应命中固定透明外层");
+        HitTestResult? retentionHit = VisualTreeHelper.HitTest(stack, new Point(60, 41.5));
+        Assert(retentionHit is not null && ReferenceEquals(retentionHit.VisualHit, retentionSurface),
+            "CliporaCard 原下边缘外 3 DIP 内应命中稳定 hover 保留带");
+        HitTestResult? clearGapHit = VisualTreeHelper.HitTest(stack, new Point(60, 43.5));
+        Assert(clearGapHit is null,
+            "相邻卡片之间最后 1 DIP 应保持不可命中，避免 hover 粘连");
+        HitTestResult? secondCardHit = VisualTreeHelper.HitTest(stack, new Point(60, 44.5));
+        Assert(secondCardHit is not null && IsVisualDescendantOf(secondCardHit.VisualHit, secondCard),
+            "越过 4 DIP 间距后应明确命中下一张卡片");
+        Assert(Math.Abs(hitSurface.ActualHeight - 40) < 0.01
+            && Math.Abs(cardSurface.ActualHeight - 40) < 0.01
+            && Math.Abs(retentionSurface!.ActualHeight - 3) < 0.01,
+            "CliporaCard 视觉高度、固定命中高度与 3 DIP 保留带应精确保持");
+    }
+
+    private static bool IsVisualDescendantOf(DependencyObject visual, DependencyObject ancestor)
+    {
+        for (DependencyObject? current = visual; current is not null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (ReferenceEquals(current, ancestor))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 图片大预览重构自检：覆盖连续悬停、滚动/拖拽抑制、物理屏幕定位和串行限尺寸解码。
+    /// </summary>
+    private static void RunImagePreviewTests(string tempRoot)
+    {
+        // —— 1. 连续 350ms 悬停、过期代次和滚动停稳 ——
+        var policy = new ImagePreviewInteractionPolicy();
+        long firstVersion = policy.ArmFromPointerEntry(1_000);
+        Assert(firstVersion > 0 && policy.Phase == ImagePreviewPhase.Pending,
+            "ImagePreview: 首次进入应进入 Pending");
+        Assert(!policy.ShouldBeginLoading(1_349),
+            "ImagePreview: 连续悬停不足 350ms 不得解码");
+        Assert(policy.ShouldBeginLoading(1_350),
+            "ImagePreview: 连续悬停达到 350ms 才可解码");
+        Assert(policy.TryBeginLoading(firstVersion)
+            && policy.IsCurrent(firstVersion, ImagePreviewPhase.Loading),
+            "ImagePreview: 当前代次应进入 Loading");
+        Assert(policy.TryOpen(firstVersion) && policy.Phase == ImagePreviewPhase.Open,
+            "ImagePreview: 当前加载结果应进入 Open");
+
+        policy.Cancel();
+        Assert(!policy.TryOpen(firstVersion),
+            "ImagePreview: 取消后的过期加载结果必须丢弃");
+        long switchedVersion = policy.ArmFromPointerEntry(1_500);
+        Assert(switchedVersion != firstVersion && !policy.TryBeginLoading(firstVersion),
+            "ImagePreview: 切换目标必须使旧请求代次失效");
+
+        policy.NotifyScroll(2_000);
+        Assert(policy.IsScrollActive && policy.Phase == ImagePreviewPhase.Suppressed,
+            "ImagePreview: 非零滚动应立即进入 Suppressed");
+        Assert(!policy.TrySettleScroll(2_119),
+            "ImagePreview: 120ms 内仍应视为滚动中");
+        Assert(policy.TrySettleScroll(2_120) && policy.Phase == ImagePreviewPhase.Idle,
+            "ImagePreview: 最后一次位移后 120ms 才可恢复");
+        long afterScrollVersion = policy.ArmAfterScroll(2_120);
+        Assert(afterScrollVersion > 0 && !policy.ShouldBeginLoading(2_469),
+            "ImagePreview: 滚动时间不得计入新的 350ms 悬停");
+        Assert(policy.ShouldBeginLoading(2_470),
+            "ImagePreview: 停稳后重新连续等待 350ms 才可加载");
+
+        policy.NotifyPointerInteraction();
+        Assert(policy.RequiresFreshEntry && policy.Phase == ImagePreviewPhase.Suppressed,
+            "ImagePreview: 鼠标按下/拖拽应取消并要求新的进入");
+        Assert(policy.ArmAfterScroll(3_000) < 0,
+            "ImagePreview: 松键或滚动停稳不得补弹拖拽前的预览");
+        long freshVersion = policy.ArmFromPointerEntry(3_100);
+        Assert(freshVersion > 0 && !policy.RequiresFreshEntry,
+            "ImagePreview: 新的缩略图进入才解除拖拽抑制");
+
+        // —— 2. 4 DIP 容差必须按各显示器 DPI 转为物理像素 ——
+        Rect inflated100 = ImagePreviewScreenGeometry.InflateForDpi(
+            new Rect(100, 100, 200, 100),
+            marginDip: 4,
+            scaleX: 1,
+            scaleY: 1);
+        Assert(inflated100 == new Rect(96, 96, 208, 108),
+            "ImagePreview: 100% DPI 下 4 DIP 容差应等于 4px");
+        Rect inflated200 = ImagePreviewScreenGeometry.InflateForDpi(
+            new Rect(100, 100, 200, 100),
+            marginDip: 4,
+            scaleX: 2,
+            scaleY: 2);
+        Assert(inflated200 == new Rect(92, 92, 216, 116),
+            "ImagePreview: 200% DPI 下 4 DIP 容差应等于 8px");
+        Assert(inflated100.Contains(97, 150) && !inflated100.Contains(95, 150),
+            "ImagePreview: 3 DIP 上浮应留在安全区，超过 4 DIP 应立即判定离开");
+
+        // 125% DPI 真机回归：CustomPopupPlacement 的相对点必须保持与 PointToScreen
+        // 相同的设备坐标单位；若再除以 1.25，左侧 Popup 会被向右推回并覆盖主面板。
+        var plannedPopup = new Rect(1_567, 522, 500, 323);
+        var targetPhysicalOrigin = new Point(2_106, 607);
+        Point popupOffset = ImagePreviewScreenGeometry.ToTargetRelativePopupOffset(
+            plannedPopup,
+            targetPhysicalOrigin);
+        Assert(popupOffset == new Point(-539, -85),
+            "ImagePreview: Popup 相对偏移不得重复执行 DPI 缩放");
+        Assert(targetPhysicalOrigin.X + popupOffset.X == plannedPopup.Left
+            && targetPhysicalOrigin.Y + popupOffset.Y == plannedPopup.Top,
+            "ImagePreview: Popup 最终物理位置必须精确还原规划矩形");
+
+        string bindingPath = Path.Combine(tempRoot, "preview-binding.png");
+        var originalBinding = new ClipItemViewModel(new ClipItem
+        {
+            Type = ClipType.Image,
+            RefPath = bindingPath,
+        });
+        var recycledBinding = new ClipItemViewModel(new ClipItem
+        {
+            Type = ClipType.Image,
+            RefPath = Path.Combine(tempRoot, "preview-recycled.png"),
+        });
+        var recycledTarget = new Border { DataContext = originalBinding };
+        Assert(ImagePreviewController.IsTargetBindingCurrent(
+                recycledTarget,
+                originalBinding,
+                bindingPath),
+            "ImagePreview: 原容器、原绑定和原路径应保持有效");
+        recycledTarget.DataContext = recycledBinding;
+        Assert(!ImagePreviewController.IsTargetBindingCurrent(
+                recycledTarget,
+                originalBinding,
+                bindingPath),
+            "ImagePreview: 虚拟化容器改绑后旧请求必须失效");
+        recycledTarget.DataContext = originalBinding;
+        Assert(!ImagePreviewController.IsTargetBindingCurrent(
+                recycledTarget,
+                originalBinding,
+                bindingPath + ".changed"),
+            "ImagePreview: 请求路径改变后旧请求必须失效");
+
+        // —— 3. 稳定位置：外侧优先、>=60% 缩放、内部降级、负坐标显示器 ——
+        static void AssertInside(Rect outer, Rect inner, string message)
+        {
+            const double epsilon = 0.001;
+            Assert(inner.Left >= outer.Left - epsilon
+                && inner.Top >= outer.Top - epsilon
+                && inner.Right <= outer.Right + epsilon
+                && inner.Bottom <= outer.Bottom + epsilon,
+                message);
+        }
+
+        static void AssertPlacementInvariant(
+            Rect work,
+            Rect window,
+            ImagePreviewPlacement placement,
+            double gap,
+            string scenario)
+        {
+            const double epsilon = 0.001;
+            AssertInside(work, placement.Bounds,
+                $"ImagePreview: {scenario} 结果必须位于工作区内");
+
+            if (placement.Kind == ImagePreviewPlacementKind.ExternalLeft)
+            {
+                Assert(Math.Abs(window.Left - gap - placement.Bounds.Right) <= epsilon,
+                    $"ImagePreview: {scenario} 左侧外置预览必须精确贴齐 12 DIP 面板间距");
+                Assert(placement.Bounds.Right <= window.Left - epsilon,
+                    $"ImagePreview: {scenario} 左侧外置预览不得覆盖主面板");
+            }
+            else if (placement.Kind == ImagePreviewPlacementKind.ExternalRight)
+            {
+                Assert(Math.Abs(placement.Bounds.Left - window.Right - gap) <= epsilon,
+                    $"ImagePreview: {scenario} 右侧外置预览必须精确贴齐 12 DIP 面板间距");
+                Assert(placement.Bounds.Left >= window.Right + epsilon,
+                    $"ImagePreview: {scenario} 右侧外置预览不得覆盖主面板");
+            }
+        }
+
+        var workArea = new Rect(0, 0, 1920, 1080);
+        ImagePreviewPlacement rightPlacement = ImagePreviewPlacementPolicy.Calculate(
+            workArea,
+            new Rect(40, 100, 500, 700),
+            new Rect(120, 300, 160, 100),
+            new Size(400, 300),
+            gap: 12);
+        Assert(rightPlacement.Kind == ImagePreviewPlacementKind.ExternalRight
+            && Math.Abs(rightPlacement.Scale - 1) < 0.001,
+            "ImagePreview: 面板右侧空间充足时应完整放在右侧外部");
+        AssertInside(workArea, rightPlacement.Bounds,
+            "ImagePreview: 右侧外部位置必须位于工作区内");
+
+        ImagePreviewPlacement leftPlacement = ImagePreviewPlacementPolicy.Calculate(
+            workArea,
+            new Rect(1380, 100, 500, 700),
+            new Rect(1580, 300, 160, 100),
+            new Size(400, 300),
+            gap: 12);
+        Assert(leftPlacement.Kind == ImagePreviewPlacementKind.ExternalLeft
+            && Math.Abs(leftPlacement.Scale - 1) < 0.001,
+            "ImagePreview: 面板左侧空间充足时应完整放在左侧外部");
+        AssertInside(workArea, leftPlacement.Bounds,
+            "ImagePreview: 左侧外部位置必须位于工作区内");
+
+        var constrainedWorkArea = new Rect(0, 0, 1000, 800);
+        ImagePreviewPlacement scaledPlacement = ImagePreviewPlacementPolicy.Calculate(
+            constrainedWorkArea,
+            new Rect(300, 50, 440, 700),
+            new Rect(360, 300, 140, 90),
+            new Size(400, 400),
+            gap: 12);
+        Assert(scaledPlacement.Kind == ImagePreviewPlacementKind.ExternalLeft
+            && scaledPlacement.Scale >= ImagePreviewPlacementPolicy.MinimumExternalScale
+            && scaledPlacement.Scale < 1,
+            "ImagePreview: 外侧能容纳至少 60% 时应等比缩小并继续放在外侧");
+        AssertInside(constrainedWorkArea, scaledPlacement.Bounds,
+            "ImagePreview: 外侧缩小位置必须位于工作区内");
+
+        ImagePreviewPlacement internalPlacement = ImagePreviewPlacementPolicy.Calculate(
+            constrainedWorkArea,
+            new Rect(20, 20, 960, 760),
+            new Rect(100, 280, 140, 90),
+            new Size(400, 400),
+            gap: 12);
+        Assert(internalPlacement.Kind == ImagePreviewPlacementKind.InternalRight,
+            "ImagePreview: 两侧均不足 60% 时应放到面板内部且远离左侧目标");
+        AssertInside(constrainedWorkArea, internalPlacement.Bounds,
+            "ImagePreview: 面板内部降级位置必须位于工作区内");
+
+        var negativeWorkArea = new Rect(-1920, 0, 1920, 1080);
+        ImagePreviewPlacement negativePlacement = ImagePreviewPlacementPolicy.Calculate(
+            negativeWorkArea,
+            new Rect(-1800, 100, 500, 700),
+            new Rect(-1700, 300, 160, 100),
+            new Size(400, 300),
+            gap: 12);
+        AssertInside(negativeWorkArea, negativePlacement.Bounds,
+            "ImagePreview: 负坐标显示器的位置必须始终位于其工作区内");
+
+        Size desired = ImagePreviewPlacementPolicy.GetDesiredOuterSize(
+            pixelWidth: 800,
+            pixelHeight: 400,
+            displayDpiX: 96,
+            displayDpiY: 96,
+            maximumOuterSize: 400,
+            chromeSize: 20);
+        Assert(Math.Abs(desired.Width - 400) < 0.001
+            && Math.Abs(desired.Height - 210) < 0.001,
+            "ImagePreview: 400 DIP 外框上限应保留图像宽高比和 20 DIP 外框");
+
+        // 几何不变量矩阵：Windows 常见/自定义 100%–500% 缩放、横竖屏、负坐标显示器，
+        // 以及从窄窗到最大化的窗口尺寸。只要策略选择 External，必须严格保持 12 DIP
+        // 间距且与面板零重叠；空间不足转 Internal 是用户已确认的唯一例外。
+        double[] dpiScales =
+        [
+            1.0, 1.1, 1.2, 1.25, 1.33, 1.5, 1.6, 1.75,
+            2.0, 2.25, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0,
+        ];
+        Rect[] workAreas =
+        [
+            new Rect(0, 0, 1280, 720),
+            new Rect(0, 0, 1920, 1080),
+            new Rect(-2560, -200, 2560, 1440),
+            new Rect(1920, -300, 1080, 1920),
+        ];
+        double[] windowWidthRatios = [0.18, 0.30, 0.50, 0.75, 1.0];
+        double[] windowHeightRatios = [0.35, 0.65, 1.0];
+        double[] horizontalPositions = [0.0, 0.5, 1.0];
+
+        foreach (double dpiScale in dpiScales)
+        {
+            foreach (Rect matrixWorkArea in workAreas)
+            foreach (double widthRatio in windowWidthRatios)
+            foreach (double heightRatio in windowHeightRatios)
+            foreach (double horizontalPosition in horizontalPositions)
+            {
+                double windowWidth = matrixWorkArea.Width * widthRatio;
+                double windowHeight = matrixWorkArea.Height * heightRatio;
+                double windowLeft = matrixWorkArea.Left
+                    + (matrixWorkArea.Width - windowWidth) * horizontalPosition;
+                double windowTop = matrixWorkArea.Top
+                    + (matrixWorkArea.Height - windowHeight) / 2;
+                var matrixWindow = new Rect(
+                    windowLeft,
+                    windowTop,
+                    windowWidth,
+                    windowHeight);
+                double targetWidth = Math.Min(windowWidth * 0.45, 180 * dpiScale);
+                double targetHeight = Math.Min(windowHeight * 0.30, 100 * dpiScale);
+                bool targetOnLeft = horizontalPosition < 0.5;
+                double targetLeft = targetOnLeft
+                    ? matrixWindow.Left + windowWidth * 0.08
+                    : matrixWindow.Right - windowWidth * 0.08 - targetWidth;
+                var matrixTarget = new Rect(
+                    targetLeft,
+                    matrixWindow.Top + (windowHeight - targetHeight) / 2,
+                    targetWidth,
+                    targetHeight);
+                double matrixGap = 12 * dpiScale;
+                var matrixDesired = new Size(400 * dpiScale, 260 * dpiScale);
+                ImagePreviewPlacement matrixPlacement = ImagePreviewPlacementPolicy.Calculate(
+                    matrixWorkArea,
+                    matrixWindow,
+                    matrixTarget,
+                    matrixDesired,
+                    matrixGap);
+                string scenario = $"{dpiScale:P0}/{matrixWorkArea.Width}x{matrixWorkArea.Height}/"
+                    + $"window={widthRatio:P0}x{heightRatio:P0}/pos={horizontalPosition:P0}";
+                AssertPlacementInvariant(
+                    matrixWorkArea,
+                    matrixWindow,
+                    matrixPlacement,
+                    matrixGap,
+                    scenario);
+
+                Point targetOrigin = matrixTarget.TopLeft;
+                Point matrixOffset = ImagePreviewScreenGeometry.ToTargetRelativePopupOffset(
+                    matrixPlacement.Bounds,
+                    targetOrigin);
+                Assert(Math.Abs(targetOrigin.X + matrixOffset.X - matrixPlacement.Bounds.Left) <= 0.001
+                    && Math.Abs(targetOrigin.Y + matrixOffset.Y - matrixPlacement.Bounds.Top) <= 0.001,
+                    $"ImagePreview: {scenario} Popup 坐标适配必须与 DPI 无关并还原规划位置");
+            }
+        }
+
+        var smallWorkArea = new Rect(0, 0, 800, 600);
+        ImagePreviewPlacement maximizedSmallPlacement = ImagePreviewPlacementPolicy.Calculate(
+            smallWorkArea,
+            new Rect(0, 0, 800, 600),
+            new Rect(80, 220, 120, 80),
+            new Size(400, 400),
+            gap: 12);
+        Assert(maximizedSmallPlacement.Kind == ImagePreviewPlacementKind.InternalRight,
+            "ImagePreview: 小屏最大化窗口应降级到面板内部");
+        AssertInside(smallWorkArea, maximizedSmallPlacement.Bounds,
+            "ImagePreview: 小屏最大化定位结果必须位于工作区内");
+
+        // —— 4. 真实解码：限尺寸、冻结、异常静默和单张缓存 ——
+        string previewDir = Path.Combine(tempRoot, "image-preview-tests");
+        Directory.CreateDirectory(previewDir);
+        string imagePath = Path.Combine(previewDir, "wide.png");
+        WritePreviewBitmap(imagePath, width: 800, height: 400);
+
+        using (var loader = new ImagePreviewLoader())
+        {
+            BitmapSource? decoded = loader.LoadAsync(imagePath, 200, 200)
+                .GetAwaiter().GetResult();
+            Assert(decoded is not null
+                && decoded.IsFrozen
+                && decoded.PixelWidth <= 200
+                && decoded.PixelHeight <= 200,
+                "ImagePreviewLoader: 应按预览上限下采样并返回 Freeze 的 BitmapSource");
+            Assert(Math.Abs((double)decoded!.PixelWidth / decoded.PixelHeight - 2.0) < 0.05,
+                "ImagePreviewLoader: 下采样必须保持原图宽高比");
+
+            BitmapSource? cached = loader.LoadAsync(imagePath, 200, 200)
+                .GetAwaiter().GetResult();
+            Assert(ReferenceEquals(decoded, cached),
+                "ImagePreviewLoader: 最近一张相同尺寸预览应命中单项缓存");
+
+            Assert(loader.LoadAsync(Path.Combine(previewDir, "missing.png"), 200, 200)
+                    .GetAwaiter().GetResult() is null,
+                "ImagePreviewLoader: 缺失图片应静默返回空");
+            Assert(loader.LoadAsync(@"\\server\share\preview.png", 200, 200)
+                    .GetAwaiter().GetResult() is null,
+                "ImagePreviewLoader: UNC 图片路径不得触发网络读取");
+            string corruptPath = Path.Combine(previewDir, "corrupt.png");
+            File.WriteAllText(corruptPath, "not an image");
+            Assert(loader.LoadAsync(corruptPath, 200, 200)
+                    .GetAwaiter().GetResult() is null,
+                "ImagePreviewLoader: 损坏图片应静默返回空");
+            using var canceled = new CancellationTokenSource();
+            canceled.Cancel();
+            Assert(loader.LoadAsync(imagePath, 200, 200, canceled.Token)
+                    .GetAwaiter().GetResult() is null,
+                "ImagePreviewLoader: 已取消请求应静默返回空");
+        }
+
+        // —— 5. 工作线程：STA、串行解码、繁忙时只保留最新等待项 ——
+        string firstPath = Path.Combine(previewDir, "first.preview");
+        string replacedPath = Path.Combine(previewDir, "replaced.preview");
+        string latestPath = Path.Combine(previewDir, "latest.preview");
+        File.WriteAllText(firstPath, "first");
+        File.WriteAllText(replacedPath, "replaced");
+        File.WriteAllText(latestPath, "latest");
+
+        using var firstStarted = new ManualResetEventSlim();
+        using var releaseFirst = new ManualResetEventSlim();
+        var decodedNames = new List<string>();
+        int activeDecoders = 0;
+        int maximumConcurrentDecoders = 0;
+        bool allDecodesWereSta = true;
+
+        BitmapSource? FakeDecode(
+            string path,
+            int maxPixelWidth,
+            int maxPixelHeight,
+            CancellationToken cancellationToken)
+        {
+            int active = Interlocked.Increment(ref activeDecoders);
+            int observedMaximum;
+            do
+            {
+                observedMaximum = Volatile.Read(ref maximumConcurrentDecoders);
+                if (active <= observedMaximum)
+                    break;
+            }
+            while (Interlocked.CompareExchange(
+                ref maximumConcurrentDecoders,
+                active,
+                observedMaximum) != observedMaximum);
+
+            try
+            {
+                allDecodesWereSta &= Thread.CurrentThread.GetApartmentState() == ApartmentState.STA;
+                string name = Path.GetFileName(path);
+                decodedNames.Add(name);
+                if (string.Equals(name, Path.GetFileName(firstPath), StringComparison.Ordinal))
+                {
+                    firstStarted.Set();
+                    releaseFirst.Wait(TimeSpan.FromSeconds(5));
+                }
+
+                byte[] pixel = { 0x20, 0x80, 0xE0, 0xFF };
+                BitmapSource bitmap = BitmapSource.Create(
+                    1, 1, 96, 96, PixelFormats.Bgra32, null, pixel, 4);
+                bitmap.Freeze();
+                return cancellationToken.IsCancellationRequested ? null : bitmap;
+            }
+            finally
+            {
+                Interlocked.Decrement(ref activeDecoders);
+            }
+        }
+
+        using (var serializedLoader = new ImagePreviewLoader(FakeDecode))
+        {
+            Task<BitmapSource?> firstTask = serializedLoader.LoadAsync(firstPath, 100, 100);
+            Assert(firstStarted.Wait(TimeSpan.FromSeconds(5)),
+                "ImagePreviewLoader: 首个请求应在 STA 工作线程开始解码");
+
+            Task<BitmapSource?> replacedTask = serializedLoader.LoadAsync(replacedPath, 100, 100);
+            Task<BitmapSource?> latestTask = serializedLoader.LoadAsync(latestPath, 100, 100);
+            Assert(replacedTask.Wait(TimeSpan.FromSeconds(5)) && replacedTask.Result is null,
+                "ImagePreviewLoader: 工作线程繁忙时应丢弃被更新请求替换的等待项");
+
+            releaseFirst.Set();
+            Assert(firstTask.Wait(TimeSpan.FromSeconds(5)) && firstTask.Result is not null,
+                "ImagePreviewLoader: 活动解码应正常串行完成");
+            Assert(latestTask.Wait(TimeSpan.FromSeconds(5)) && latestTask.Result is not null,
+                "ImagePreviewLoader: 活动解码后应只处理最新等待项");
+        }
+
+        Assert(allDecodesWereSta,
+            "ImagePreviewLoader: 所有解码必须运行在应用级 STA 工作线程");
+        Assert(maximumConcurrentDecoders == 1,
+            "ImagePreviewLoader: 不得并行执行多个全图解码");
+        Assert(decodedNames.SequenceEqual([
+                Path.GetFileName(firstPath),
+                Path.GetFileName(latestPath)]),
+            "ImagePreviewLoader: 有界队列应只执行活动请求和最新等待请求");
+    }
+
+    private static void WritePreviewBitmap(string path, int width, int height)
+    {
+        int stride = checked(width * 4);
+        byte[] pixels = new byte[checked(stride * height)];
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                int offset = y * stride + x * 4;
+                pixels[offset] = (byte)(x % 256);
+                pixels[offset + 1] = (byte)(y % 256);
+                pixels[offset + 2] = 0x80;
+                pixels[offset + 3] = 0xFF;
+            }
+        }
+
+        BitmapSource bitmap = BitmapSource.Create(
+            width,
+            height,
+            96,
+            96,
+            PixelFormats.Bgra32,
+            null,
+            pixels,
+            stride);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using FileStream stream = File.Create(path);
+        encoder.Save(stream);
     }
 
     /// <summary>

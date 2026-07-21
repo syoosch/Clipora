@@ -6,63 +6,106 @@
         <ResourceDictionary Source="pack://application:,,,/Theme/Tokens.xaml" />
     </ResourceDictionary.MergedDictionaries>
 
-    <!-- 卡片基样式：白底圆角细边 + 悬停浮起（柔和阴影 + 微上移）。
-         注：Phase 1.2 用即时切换；平滑动画在 Phase 4.5 打磨时加入。 -->
-    <Style x:Key="CliporaCard" TargetType="Border">
+    <!-- 卡片基样式：固定透明命中层 + 上浮视觉层。
+         命中层保持原布局位置，避免视觉层上移后光标落出卡片而反复触发 MouseLeave/MouseEnter。 -->
+    <Style x:Key="CliporaCard" TargetType="ContentControl">
         <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
         <Setter Property="Padding" Value="{StaticResource CardPadding}" />
         <Setter Property="Margin" Value="{StaticResource ListItemMargin}" />
-        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
-        <Setter Property="RenderTransform">
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
             <Setter.Value>
-                <TranslateTransform Y="0" />
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <!-- 保持既有 4 DIP 卡片间距：前 3 DIP 稳定 hover，最后 1 DIP 明确退出。 -->
+                            <RowDefinition Height="4" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Transparent 必须保留：它让原始卡片矩形始终参与命中测试。 -->
+                        <Border x:Name="HoverHitSurface" Grid.Row="0" Background="Transparent">
+                            <Border x:Name="CardSurface"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="{StaticResource RadiusCard}"
+                                    Padding="{TemplateBinding Padding}"
+                                    RenderTransformOrigin="0.5,0.5">
+                                <Border.RenderTransform>
+                                    <TranslateTransform Y="0" />
+                                </Border.RenderTransform>
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="14" ShadowDepth="2" Direction="270" Color="Black" Opacity="0" />
+                                </Border.Effect>
+                                <ContentPresenter Content="{TemplateBinding Content}"
+                                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                  ContentTemplateSelector="{TemplateBinding ContentTemplateSelector}"
+                                                  ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            </Border>
+                        </Border>
+
+                        <!-- 光标压在下描边/间距交界时仍保持 hover；不改变卡片视觉或列表总高度。 -->
+                        <Border x:Name="HoverRetentionSurface"
+                                Grid.Row="1"
+                                Height="3"
+                                VerticalAlignment="Top"
+                                Background="Transparent" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="CardSurface"
+                                                         Storyboard.TargetProperty="RenderTransform.Y"
+                                                         To="-3" Duration="0:0:0.15">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="CardSurface"
+                                                         Storyboard.TargetProperty="Effect.Opacity"
+                                                         To="0.18" Duration="0:0:0.15">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="CardSurface"
+                                                         Storyboard.TargetProperty="RenderTransform.Y"
+                                                         To="0" Duration="0:0:0.20">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="CardSurface"
+                                                         Storyboard.TargetProperty="Effect.Opacity"
+                                                         To="0" Duration="0:0:0.20">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
             </Setter.Value>
         </Setter>
-        <!-- 静止时阴影透明，悬停时平滑渐显 + 轻柔浮起 -->
-        <Setter Property="Effect">
-            <Setter.Value>
-                <DropShadowEffect BlurRadius="14" ShadowDepth="2" Direction="270" Color="Black" Opacity="0" />
-            </Setter.Value>
-        </Setter>
-        <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Trigger.EnterActions>
-                    <BeginStoryboard>
-                        <Storyboard>
-                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Y" To="-3" Duration="0:0:0.15">
-                                <DoubleAnimation.EasingFunction>
-                                    <CubicEase EasingMode="EaseOut" />
-                                </DoubleAnimation.EasingFunction>
-                            </DoubleAnimation>
-                            <DoubleAnimation Storyboard.TargetProperty="Effect.Opacity" To="0.18" Duration="0:0:0.15">
-                                <DoubleAnimation.EasingFunction>
-                                    <CubicEase EasingMode="EaseOut" />
-                                </DoubleAnimation.EasingFunction>
-                            </DoubleAnimation>
-                        </Storyboard>
-                    </BeginStoryboard>
-                </Trigger.EnterActions>
-                <Trigger.ExitActions>
-                    <BeginStoryboard>
-                        <Storyboard>
-                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Y" To="0" Duration="0:0:0.20">
-                                <DoubleAnimation.EasingFunction>
-                                    <CubicEase EasingMode="EaseOut" />
-                                </DoubleAnimation.EasingFunction>
-                            </DoubleAnimation>
-                            <DoubleAnimation Storyboard.TargetProperty="Effect.Opacity" To="0" Duration="0:0:0.20">
-                                <DoubleAnimation.EasingFunction>
-                                    <CubicEase EasingMode="EaseOut" />
-                                </DoubleAnimation.EasingFunction>
-                            </DoubleAnimation>
-                        </Storyboard>
-                    </BeginStoryboard>
-                </Trigger.ExitActions>
-            </Trigger>
-        </Style.Triggers>
     </Style>
 
     <!-- 托盘右键菜单：与主面板一致的中性圆角卡片。 -->

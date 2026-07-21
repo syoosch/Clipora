@@ -7,7 +7,7 @@
 ; 由 scripts/build-installer.ps1 调 ISCC 编译；PublishDir 可用 /DPublishDir=... 覆盖。
 
 #define MyAppName "Clipora"
-#define MyAppVersion "0.4.3"
+#define MyAppVersion "0.4.4"
 #define MyAppPublisher "Clipora"
 #define MyAppExeName "Clipora.exe"
 #ifndef PublishDir

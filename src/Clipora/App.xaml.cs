@@ -44,6 +44,7 @@ public partial class App : Application
     private SequentialPasteSession? _sequentialPasteSession;
     private WindowsOcrService? _ocrService;
     private OcrProcessingService? _ocrProcessing;
+    private ImagePreviewLoader? _imagePreviewLoader;
     private CrashDiagnosticService? _diagnostics;
     private readonly Queue<PendingHotkeyPaste> _pendingHotkeyPastes = new();
     private DispatcherTimer? _hotkeyPasteTimer;
@@ -324,10 +325,16 @@ public partial class App : Application
         var backupService = new BackupService(paths, database);
         var backupRecovery = new BackupImportRecoveryService(database, paths.Root);
         backupRecovery.RecoverAll(); // 启动时恢复未完成的导入
+        _imagePreviewLoader = new ImagePreviewLoader();
 
         settingsVm.RefreshHistory = () => Dispatcher.Invoke(() => viewModel.Reload());
 
-        _window = new HistoryWindow(_settings) { DataContext = viewModel, SettingsViewModel = settingsVm, BackupService = backupService };
+        _window = new HistoryWindow(_settings, _imagePreviewLoader)
+        {
+            DataContext = viewModel,
+            SettingsViewModel = settingsVm,
+            BackupService = backupService,
+        };
         MainWindow = _window; // 临时启动窗可能曾成为首个 Window；正常组合根必须显式接管 MainWindow。
         // 把主窗口交给主题服务：仅「跟随系统」模式监听系统主题变化，固定浅/深色不被系统覆盖。
         themeService.AttachWindow(_window);
@@ -867,6 +874,7 @@ public partial class App : Application
         _settings?.Save(); // 确保 DeferredSave 中的数据在退出前刷盘
         _trayRetryTimer?.Stop();
         _ocrProcessing?.Dispose();
+        _imagePreviewLoader?.Dispose();
         _floatingBar?.Close();
         _hotkey?.Dispose();
         _monitor?.Dispose();

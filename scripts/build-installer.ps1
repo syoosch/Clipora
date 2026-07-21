@@ -124,6 +124,7 @@ if (-not (Test-VersionMatches $fileVersion $version) -or -not (Test-VersionMatch
 
 $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $setup).Hash.ToUpperInvariant()
 $setupName = Split-Path -Leaf $setup
+$downloadUrl = "https://github.com/syoosch/Clipora/releases/download/v$version/$setupName"
 Write-Utf8NoBom $checksum "$hash  $setupName`r`n"
 $checksumText = [IO.File]::ReadAllText($checksum)
 if (-not $checksumText.Contains($hash) -or -not $checksumText.Contains($setupName)) {
@@ -133,26 +134,44 @@ if (-not $checksumText.Contains($hash) -or -not $checksumText.Contains($setupNam
 $releaseNotes = @"
 # Clipora v$version
 
-## 本版变化
+Clipora v$version is an interaction-stability update for this fully local Windows clipboard-history tool. It makes image previews predictable during hover and scrolling, improves placement across DPI and multi-monitor layouts, and removes a bottom-edge hover loop that could make cards jitter.
 
-- 修复 .clpbak 导入/崩溃恢复的路径与 journal 信任边界，并把归档 SQLite 作为不可信数据库完成完整性、schema 和逐行语义验证。
-- 可执行、脚本和快捷方式等主动文件打开前要求明确确认；URL 仅允许 HTTP/HTTPS，普通文件保持直接打开。
-- 隐私标记不确定时采用一次非阻塞重试后跳过；Release 崩溃诊断改为本地脱敏并限期/限量保留。
-- SQLitePCLRaw 固定为 3.0.3，移除已知高危传递依赖版本。
+## What's new
 
-## 系统与安装
+- Predictable preview timing: image previews open only after 350 ms of continuous hover, and scrolling cancels pending or open previews until the list has been still for 120 ms.
+- Safer virtualized scrolling: stale preview targets are discarded when containers are recycled or detached, preventing crashes during very fast history browsing.
+- DPI- and monitor-aware placement: the 400 x 400 DIP preview prefers the outside of the panel with a 12 DIP gap and no overlap, including on scaled, negative-coordinate, and small work areas.
+- Responsive image loading: decoding runs on a dedicated STA worker with a bounded local cache and latest-request-wins queue.
+- Stable card hover: a fixed hit surface and a narrow bottom retention strip prevent the 3 DIP lift animation from repeatedly entering and leaving at the card edge.
 
-- Windows 10 version 2004 / build 19041 或更高版本，Windows 11；x64。
-- win-x64 自包含单文件应用，安装包为 per-user，无需另装 .NET 或管理员权限。
-- 当前安装包未做代码签名，Windows SmartScreen 可能显示提示；请核对下面的 SHA-256 后再运行。
+## Download
 
-## SHA-256
+**Recommended download:** [Download Clipora v$version for Windows (x64)]($downloadUrl)
 
-$hash  $setupName
+This is the installer most users should choose. The ``Clipora-$version-SHA256.txt`` asset is only for verifying the download.
 
-## 隐私
+- Windows 10 version 2004 (build 19041) or later, or Windows 11
+- x64
+- Self-contained; no separate .NET installation required
+- Per-user installation; administrator rights are not normally required
 
-Clipora 是纯本地（local-only/offline）应用，不联网、不上传剪贴板数据。SQLite 数据库、附件与 .clpbak 备份当前未加密；请把数据和备份保存在可信位置，详见 PRIVACY.md。
+> The installer is not code-signed. Windows SmartScreen may display a warning. Choose **More info -> Run anyway** only after verifying that the SHA-256 value matches the checksum below.
+
+## Integrity
+
+SHA-256 for ``$setupName``:
+
+``````text
+$hash
+``````
+
+The same value is provided in ``Clipora-$version-SHA256.txt``.
+
+## Privacy
+
+Clipora follows a local-only, offline privacy model and does not upload clipboard data. Clipboard history is stored on your device under ``%LOCALAPPDATA%\Clipora`` by default. The SQLite database, stored attachments, and ``.clpbak`` backups are not encrypted, so keep them in trusted locations.
+
+See the full [changelog](https://github.com/syoosch/Clipora/blob/main/CHANGELOG.md), [user manual](https://github.com/syoosch/Clipora/blob/main/manual/README.md), and [privacy notice](https://github.com/syoosch/Clipora/blob/main/PRIVACY.md).
 "@
 Write-Utf8NoBom $notes ($releaseNotes.Trim() + "`r`n")
 if (-not [IO.File]::ReadAllText($notes).Contains($hash)) {

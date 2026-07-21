@@ -22,8 +22,10 @@
          0.4.2：图片预览 200% DPI 过早关闭修复（安全区边界 DIP/物理像素不匹配）
                 + 移除 Deactivated 关闭预览 + 预览关闭容差调优。
          0.4.3：升级 SQLitePCLRaw 原生依赖；加固不可信备份/SQLite/恢复、危险文件打开、
-                隐私 Unknown 处理与 Release 诊断脱敏，并补充双语隐私披露。 -->
-    <Version>0.4.3</Version>
+                隐私 Unknown 处理与 Release 诊断脱敏，并补充双语隐私披露。
+         0.4.4：重构图片预览悬停/滚动状态机与 DPI/多屏定位，并修复卡片下边缘
+                悬停上浮抽搐。 -->
+    <Version>0.4.4</Version>
     <!-- 发布元数据：决定 exe「详细信息」属性页与安装包显示信息（M6.3a） -->
     <Product>Clipora</Product>
     <AssemblyTitle>Clipora</AssemblyTitle>
@@ -31,9 +33,9 @@
     <Authors>Clipora</Authors>
     <Description>Clipora — 本地 Windows 剪贴板历史工具（纯本地，不联网）</Description>
     <Copyright>Copyright © 2026 Clipora</Copyright>
-    <FileVersion>0.4.3.0</FileVersion>
-    <AssemblyVersion>0.4.3.0</AssemblyVersion>
-    <InformationalVersion>0.4.3</InformationalVersion>
+    <FileVersion>0.4.4.0</FileVersion>
+    <AssemblyVersion>0.4.4.0</AssemblyVersion>
+    <InformationalVersion>0.4.4</InformationalVersion>
     <!-- 不把 git 提交哈希追加进信息版本号，使属性页「产品版本」只显示 SemVer。 -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>

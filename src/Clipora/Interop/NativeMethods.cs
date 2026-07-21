@@ -38,6 +38,12 @@ internal static class NativeMethods
 
     /// <summary>WM_NCACTIVATE 非客户区激活消息（用于让玻璃窗口失焦时仍以激活态渲染，避免背景材质回退发灰）。</summary>
     public const int WM_NCACTIVATE = 0x0086;
+    public const int WM_NCLBUTTONDOWN = 0x00A1;
+    public const int WM_NCRBUTTONDOWN = 0x00A4;
+    public const int WM_NCMBUTTONDOWN = 0x00A7;
+    public const int WM_CAPTURECHANGED = 0x0215;
+    public const int WM_ENTERSIZEMOVE = 0x0231;
+    public const int WM_EXITSIZEMOVE = 0x0232;
 
     [DllImport("user32.dll")]
     public static extern IntPtr DefWindowProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
@@ -128,6 +134,10 @@ internal static class NativeMethods
     public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
     public const int VK_LBUTTON = 0x01;
+    public const int VK_RBUTTON = 0x02;
+    public const int VK_MBUTTON = 0x04;
+    public const int VK_XBUTTON1 = 0x05;
+    public const int VK_XBUTTON2 = 0x06;
 
     [DllImport("user32.dll")]
     public static extern short GetAsyncKeyState(int vKey);
