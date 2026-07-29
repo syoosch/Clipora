@@ -17,6 +17,13 @@
     <Thickness x:Key="ListItemMargin">0,0,14,0</Thickness>
     <Thickness x:Key="PanelPadding">12</Thickness>
 
+    <!-- 极简竖向滚动条：视觉宽度在固定命中区内变化，不参与内容布局。 -->
+    <sys:Double x:Key="ScrollBarHitWidth">12</sys:Double>
+    <sys:Double x:Key="ScrollBarThumbIdleWidth">3</sys:Double>
+    <sys:Double x:Key="ScrollBarThumbHoverWidth">5</sys:Double>
+    <sys:Double x:Key="ScrollBarThumbDragWidth">6</sys:Double>
+    <sys:Double x:Key="ScrollBarThumbMinLength">24</sys:Double>
+
     <!-- 圆角：卡片偏大、窗口偏大、chips 胶囊 -->
     <CornerRadius x:Key="RadiusCard">10</CornerRadius>
     <CornerRadius x:Key="RadiusWindow">12</CornerRadius>
@@ -31,4 +38,6 @@
     <Duration x:Key="DurFast">0:0:0.12</Duration>
     <Duration x:Key="DurBase">0:0:0.20</Duration>
     <Duration x:Key="DurSlow">0:0:0.30</Duration>
+    <Duration x:Key="DurScrollBarExit">0:0:0.16</Duration>
+    <Duration x:Key="DurScrollBarDrag">0:0:0.08</Duration>
 </ResourceDictionary>

@@ -829,6 +829,10 @@
                                                   HorizontalScrollBarVisibility="Disabled"
                                                   VerticalScrollBarVisibility="Auto"
                                                   CanContentScroll="True">
+                                        <ScrollViewer.Resources>
+                                            <Style TargetType="{x:Type ScrollBar}"
+                                                   BasedOn="{StaticResource CliporaMinimalVerticalScrollBar}" />
+                                        </ScrollViewer.Resources>
                                         <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
                                     </ScrollViewer>
                                 </Border>
@@ -1233,6 +1237,10 @@
                                       CanContentScroll="True"
                                       HorizontalScrollBarVisibility="Disabled"
                                       VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer.Resources>
+                                <Style TargetType="{x:Type ScrollBar}"
+                                       BasedOn="{StaticResource CliporaMinimalVerticalScrollBar}" />
+                            </ScrollViewer.Resources>
                             <ItemsPresenter />
                         </ScrollViewer>
                     </ControlTemplate>
@@ -2340,6 +2348,10 @@
                 <ScrollViewer Grid.Row="1"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer.Resources>
+                        <Style TargetType="{x:Type ScrollBar}"
+                               BasedOn="{StaticResource CliporaMinimalVerticalScrollBar}" />
+                    </ScrollViewer.Resources>
                     <TextBox IsReadOnly="True"
                              TextWrapping="Wrap"
                              BorderThickness="0"

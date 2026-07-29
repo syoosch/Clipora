@@ -870,6 +870,9 @@ public static class DevSelfTest
             // —— 主题服务烟雾测试（M6.1b） ——
             RunThemeServiceTests();
 
+            // —— 极简竖向滚动条：固定命中区、三态宽度与透明翻页轨道 ——
+            RunMinimalVerticalScrollBarStyleTests();
+
             // —— 图片缩略图：回收容器改绑图片 VM 后仍须触发惰性加载（M6.3 bugfix） ——
             RunImageThumbnailContainerTests(paths, settings);
 
@@ -7064,6 +7067,77 @@ public static class DevSelfTest
             "Fluent 下 CardBackgroundFillColorDefaultBrush 仍应可解析");
 
         // 末态收敛为 Fluent，不污染后续测试 / 进程退出前保持干净。
+    }
+
+    private static void RunMinimalVerticalScrollBarStyleTests()
+    {
+        object? styleResource =
+            Application.Current?.TryFindResource("CliporaMinimalVerticalScrollBar");
+        Assert(styleResource is System.Windows.Style,
+            "极简竖向滚动条样式必须可从应用资源解析");
+
+        var style = (System.Windows.Style)styleResource!;
+        var scrollBar = new System.Windows.Controls.Primitives.ScrollBar
+        {
+            Style = style,
+            Height = 240,
+            Minimum = 0,
+            Maximum = 100,
+            Value = 30,
+            ViewportSize = 20,
+        };
+
+        scrollBar.ApplyTemplate();
+        scrollBar.Measure(new Size(12, 240));
+        scrollBar.Arrange(new Rect(0, 0, 12, 240));
+
+        Assert(
+            scrollBar.Orientation == Orientation.Vertical
+            && Math.Abs(scrollBar.Width - 12) < 0.001
+            && Math.Abs(scrollBar.MinWidth - 12) < 0.001
+            && Math.Abs(scrollBar.MaxWidth - 12) < 0.001,
+            "滚动条必须保持固定 12 DIP 竖向命中区");
+
+        var track = scrollBar.Template.FindName("PART_Track", scrollBar)
+            as System.Windows.Controls.Primitives.Track;
+        Assert(track is not null, "滚动条模板必须提供 PART_Track");
+        Assert(
+            track!.DecreaseRepeatButton?.Command
+                == System.Windows.Controls.Primitives.ScrollBar.PageUpCommand
+            && track.IncreaseRepeatButton?.Command
+                == System.Windows.Controls.Primitives.ScrollBar.PageDownCommand,
+            "透明轨道区域必须保留 PageUp/PageDown 翻页命令");
+
+        System.Windows.Controls.Primitives.Thumb thumb = track.Thumb;
+        thumb.ApplyTemplate();
+        thumb.Measure(new Size(12, 80));
+        thumb.Arrange(new Rect(0, 0, 12, 80));
+        Assert(
+            Math.Abs(thumb.Width - 12) < 0.001
+            && Math.Abs(thumb.MinHeight - 24) < 0.001,
+            "滑块必须保留 12 DIP 命中宽度和 24 DIP 最小长度");
+
+        var thumbVisual = thumb.Template.FindName("ThumbVisual", thumb) as Border;
+        Assert(thumbVisual is not null, "滑块模板必须提供独立 ThumbVisual，避免视觉宽度改变命中区");
+
+        AssertThumbState("Normal", 3, 0.46);
+        AssertThumbState("MouseOver", 5, 0.70);
+        AssertThumbState("Pressed", 6, 0.86);
+
+        void AssertThumbState(string state, double expectedWidth, double expectedOpacity)
+        {
+            Assert(
+                VisualStateManager.GoToState(thumb, state, false),
+                $"滑块应支持 {state} 视觉状态");
+            thumb.Dispatcher.Invoke(static () => { }, DispatcherPriority.Render);
+            double actualWidth = thumbVisual!.Width;
+            double actualOpacity = thumbVisual.Opacity;
+            Assert(
+                Math.Abs(actualWidth - expectedWidth) < 0.001
+                && Math.Abs(actualOpacity - expectedOpacity) < 0.001,
+                $"{state} 状态应为 {expectedWidth} DIP / {expectedOpacity:0.00} opacity"
+                + $"（实际 {actualWidth:0.###} / {actualOpacity:0.###}）");
+        }
     }
 
     // ══════════════════════════════════════════════

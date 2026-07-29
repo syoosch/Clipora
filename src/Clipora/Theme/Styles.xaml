@@ -227,6 +227,165 @@
         </Setter>
     </Style>
 
+    <!--
+        极简竖向滚动条。
+        12 DIP Thumb/Track 命中区始终固定；只有内部中性滑块在 3/5/6 DIP 间过渡，
+        所以悬浮与拖动不会改变 ScrollViewer 布局，也不会挤压右侧卡片。
+        轨道前后 RepeatButton 保留透明命中，继续支持点击轨道翻页；不再渲染上下箭头。
+    -->
+    <Style x:Key="CliporaMinimalVerticalScrollBar" TargetType="{x:Type ScrollBar}">
+        <Setter Property="Orientation" Value="Vertical" />
+        <Setter Property="Width" Value="{StaticResource ScrollBarHitWidth}" />
+        <Setter Property="MinWidth" Value="{StaticResource ScrollBarHitWidth}" />
+        <Setter Property="MaxWidth" Value="{StaticResource ScrollBarHitWidth}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ScrollBar}">
+                    <Grid Width="{TemplateBinding Width}"
+                          Background="{TemplateBinding Background}"
+                          SnapsToDevicePixels="True">
+                        <Track x:Name="PART_Track"
+                               Margin="0,2"
+                               Orientation="Vertical"
+                               IsDirectionReversed="True">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="{x:Static ScrollBar.PageUpCommand}"
+                                              Focusable="False"
+                                              IsTabStop="False">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="{x:Type RepeatButton}">
+                                            <Border Background="Transparent" />
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.DecreaseRepeatButton>
+
+                            <Track.Thumb>
+                                <Thumb Width="{StaticResource ScrollBarHitWidth}"
+                                       MinHeight="{StaticResource ScrollBarThumbMinLength}"
+                                       Focusable="False"
+                                       IsTabStop="False">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="{x:Type Thumb}">
+                                            <Grid Width="{StaticResource ScrollBarHitWidth}"
+                                                  Background="Transparent"
+                                                  SnapsToDevicePixels="True">
+                                                <VisualStateManager.VisualStateGroups>
+                                                    <VisualStateGroup x:Name="CommonStates">
+                                                        <VisualStateGroup.Transitions>
+                                                            <VisualTransition From="Normal"
+                                                                              To="MouseOver"
+                                                                              GeneratedDuration="{StaticResource DurFast}">
+                                                                <VisualTransition.GeneratedEasingFunction>
+                                                                    <CubicEase EasingMode="EaseOut" />
+                                                                </VisualTransition.GeneratedEasingFunction>
+                                                            </VisualTransition>
+                                                            <VisualTransition From="MouseOver"
+                                                                              To="Normal"
+                                                                              GeneratedDuration="{StaticResource DurScrollBarExit}">
+                                                                <VisualTransition.GeneratedEasingFunction>
+                                                                    <CubicEase EasingMode="EaseOut" />
+                                                                </VisualTransition.GeneratedEasingFunction>
+                                                            </VisualTransition>
+                                                            <VisualTransition To="Pressed"
+                                                                              GeneratedDuration="{StaticResource DurScrollBarDrag}">
+                                                                <VisualTransition.GeneratedEasingFunction>
+                                                                    <CubicEase EasingMode="EaseOut" />
+                                                                </VisualTransition.GeneratedEasingFunction>
+                                                            </VisualTransition>
+                                                            <VisualTransition From="Pressed"
+                                                                              GeneratedDuration="{StaticResource DurFast}">
+                                                                <VisualTransition.GeneratedEasingFunction>
+                                                                    <CubicEase EasingMode="EaseOut" />
+                                                                </VisualTransition.GeneratedEasingFunction>
+                                                            </VisualTransition>
+                                                        </VisualStateGroup.Transitions>
+
+                                                        <VisualState x:Name="Normal">
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetName="ThumbVisual"
+                                                                                 Storyboard.TargetProperty="Width"
+                                                                                 To="{StaticResource ScrollBarThumbIdleWidth}"
+                                                                                 Duration="0" />
+                                                                <DoubleAnimation Storyboard.TargetName="ThumbVisual"
+                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                 To="0.46"
+                                                                                 Duration="0" />
+                                                            </Storyboard>
+                                                        </VisualState>
+                                                        <VisualState x:Name="MouseOver">
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetName="ThumbVisual"
+                                                                                 Storyboard.TargetProperty="Width"
+                                                                                 To="{StaticResource ScrollBarThumbHoverWidth}"
+                                                                                 Duration="0" />
+                                                                <DoubleAnimation Storyboard.TargetName="ThumbVisual"
+                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                 To="0.70"
+                                                                                 Duration="0" />
+                                                            </Storyboard>
+                                                        </VisualState>
+                                                        <VisualState x:Name="Pressed">
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetName="ThumbVisual"
+                                                                                 Storyboard.TargetProperty="Width"
+                                                                                 To="{StaticResource ScrollBarThumbDragWidth}"
+                                                                                 Duration="0" />
+                                                                <DoubleAnimation Storyboard.TargetName="ThumbVisual"
+                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                 To="0.86"
+                                                                                 Duration="0" />
+                                                            </Storyboard>
+                                                        </VisualState>
+                                                        <VisualState x:Name="Disabled">
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetName="ThumbVisual"
+                                                                                 Storyboard.TargetProperty="Width"
+                                                                                 To="{StaticResource ScrollBarThumbIdleWidth}"
+                                                                                 Duration="0" />
+                                                                <DoubleAnimation Storyboard.TargetName="ThumbVisual"
+                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                 To="0.24"
+                                                                                 Duration="0" />
+                                                            </Storyboard>
+                                                        </VisualState>
+                                                    </VisualStateGroup>
+                                                </VisualStateManager.VisualStateGroups>
+
+                                                <Border x:Name="ThumbVisual"
+                                                        Width="{StaticResource ScrollBarThumbIdleWidth}"
+                                                        HorizontalAlignment="Center"
+                                                        Background="{DynamicResource TextFillColorSecondaryBrush}"
+                                                        CornerRadius="3"
+                                                        Opacity="0.46" />
+                                            </Grid>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="{x:Static ScrollBar.PageDownCommand}"
+                                              Focusable="False"
+                                              IsTabStop="False">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="{x:Type RepeatButton}">
+                                            <Border Background="Transparent" />
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.IncreaseRepeatButton>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- 胶囊 chip 基样式（类型 / 标签筛选） -->
     <Style x:Key="CliporaChip" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />

@@ -134,15 +134,14 @@ if (-not $checksumText.Contains($hash) -or -not $checksumText.Contains($setupNam
 $releaseNotes = @"
 # Clipora v$version
 
-Clipora v$version is an interaction-stability update for this fully local Windows clipboard-history tool. It makes image previews predictable during hover and scrolling, improves placement across DPI and multi-monitor layouts, and removes a bottom-edge hover loop that could make cards jitter.
+Clipora v$version is a visual-polish update for this fully local Windows clipboard-history tool. It replaces abrupt expanding vertical scrollbars with a compact, theme-aware design across Fluent and Liquid Glass while preserving the existing scrolling behavior.
 
 ## What's new
 
-- Predictable preview timing: image previews open only after 350 ms of continuous hover, and scrolling cancels pending or open previews until the list has been still for 120 ms.
-- Safer virtualized scrolling: stale preview targets are discarded when containers are recycled or detached, preventing crashes during very fast history browsing.
-- DPI- and monitor-aware placement: the 400 x 400 DIP preview prefers the outside of the panel with a 12 DIP gap and no overlap, including on scaled, negative-coordinate, and small work areas.
-- Responsive image loading: decoding runs on a dedicated STA worker with a bounded local cache and latest-request-wins queue.
-- Stable card hover: a fixed hit surface and a narrow bottom retention strip prevent the 3 DIP lift animation from repeatedly entering and leaving at the card edge.
+- Minimal vertical scrollbars: the visible thumb is 3 DIP at rest, 5 DIP on hover, and 6 DIP while dragging, contained inside a fixed 12 DIP transparent hit area so content does not shift.
+- Quieter hover feedback: the track remains transparent and the line-arrow buttons are removed, avoiding the abrupt full-track expansion of the default control.
+- Existing interaction preserved: clicking the transparent track still pages through content, and thumb dragging, smooth wheel scrolling, virtualization, and automatic visibility continue to work as before.
+- Consistent coverage: the history list, long settings drop-downs, running-application selector, and long text preview use the same neutral theme-aware treatment in Fluent and Liquid Glass.
 
 ## Download
 

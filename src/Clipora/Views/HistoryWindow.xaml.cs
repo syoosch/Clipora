@@ -1495,6 +1495,8 @@ public partial class HistoryWindow : FluentWindow
         };
         listBox.SetValue(VirtualizingPanel.ScrollUnitProperty, ScrollUnit.Pixel);
         listBox.SetValue(VirtualizingPanel.VirtualizationModeProperty, VirtualizationMode.Recycling);
+        listBox.Resources[typeof(System.Windows.Controls.Primitives.ScrollBar)] =
+            FindResource("CliporaMinimalVerticalScrollBar");
         listBox.AddHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(VerticalScroll_PreviewMouseWheel));
 
         var excludedSet = new HashSet<string>(
