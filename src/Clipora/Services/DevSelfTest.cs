@@ -7082,9 +7082,9 @@ public static class DevSelfTest
             Style = style,
             Height = 240,
             Minimum = 0,
-            Maximum = 100,
-            Value = 30,
-            ViewportSize = 20,
+            Maximum = 1000,
+            Value = 0,
+            ViewportSize = 1,
         };
 
         scrollBar.ApplyTemplate();
@@ -7101,14 +7101,21 @@ public static class DevSelfTest
         var track = scrollBar.Template.FindName("PART_Track", scrollBar)
             as System.Windows.Controls.Primitives.Track;
         Assert(track is not null, "滚动条模板必须提供 PART_Track");
+        System.Windows.Controls.Primitives.Thumb thumb = track!.Thumb;
+        Rect thumbSlot =
+            System.Windows.Controls.Primitives.LayoutInformation.GetLayoutSlot(thumb);
         Assert(
-            track!.DecreaseRepeatButton?.Command
+            thumb.ActualHeight >= 24 - 0.001
+            && thumbSlot.Height >= 24 - 0.001,
+            $"超长内容下滑块与布局槽均不得短于 24 DIP"
+            + $"（实际 {thumb.ActualHeight:0.###} / 槽 {thumbSlot.Height:0.###}）");
+        Assert(
+            track.DecreaseRepeatButton?.Command
                 == System.Windows.Controls.Primitives.ScrollBar.PageUpCommand
             && track.IncreaseRepeatButton?.Command
                 == System.Windows.Controls.Primitives.ScrollBar.PageDownCommand,
             "透明轨道区域必须保留 PageUp/PageDown 翻页命令");
 
-        System.Windows.Controls.Primitives.Thumb thumb = track.Thumb;
         thumb.ApplyTemplate();
         thumb.Measure(new Size(12, 80));
         thumb.Arrange(new Rect(0, 0, 12, 80));
@@ -7123,6 +7130,47 @@ public static class DevSelfTest
         AssertThumbState("Normal", 3, 0.46);
         AssertThumbState("MouseOver", 5, 0.70);
         AssertThumbState("Pressed", 6, 0.86);
+
+        var scrollViewer = new ScrollViewer
+        {
+            Width = 300,
+            Height = 240,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = new Border { Height = 24000 },
+        };
+        scrollViewer.Resources.Add(
+            typeof(System.Windows.Controls.Primitives.ScrollBar),
+            style);
+        scrollViewer.ApplyTemplate();
+        scrollViewer.Measure(new Size(300, 240));
+        scrollViewer.Arrange(new Rect(0, 0, 300, 240));
+        scrollViewer.UpdateLayout();
+
+        var viewerScrollBar = scrollViewer.Template.FindName(
+            "PART_VerticalScrollBar",
+            scrollViewer) as System.Windows.Controls.Primitives.ScrollBar;
+        Assert(viewerScrollBar is not null,
+            "真实 ScrollViewer 模板必须提供 PART_VerticalScrollBar");
+        var viewerTrack = viewerScrollBar!.Template.FindName(
+            "PART_Track",
+            viewerScrollBar) as System.Windows.Controls.Primitives.Track;
+        Assert(viewerTrack is not null, "真实 ScrollViewer 必须应用极简滚动条模板");
+        Assert(
+            viewerTrack!.Thumb.ActualHeight >= 24 - 0.001,
+            $"真实超长页面的滑块不得短于 24 DIP（实际 {viewerTrack.Thumb.ActualHeight:0.###}）");
+        var viewerThumbVisual = viewerTrack.Thumb.Template.FindName(
+            "ThumbVisual",
+            viewerTrack.Thumb) as Border;
+        Assert(viewerThumbVisual is not null, "真实 ScrollViewer 的滑块必须提供 ThumbVisual");
+        Assert(
+            viewerThumbVisual!.ActualHeight >= 24 - 0.001,
+            $"真实超长页面的滑块视觉不得短于 24 DIP（实际 {viewerThumbVisual.ActualHeight:0.###}）");
+        Rect viewerThumbSlot =
+            System.Windows.Controls.Primitives.LayoutInformation.GetLayoutSlot(viewerTrack.Thumb);
+        Assert(
+            viewerThumbSlot.Height >= 24 - 0.001,
+            $"真实超长页面给滑块的布局槽不得短于 24 DIP（实际 {viewerThumbSlot.Height:0.###}）");
 
         void AssertThumbState(string state, double expectedWidth, double expectedOpacity)
         {

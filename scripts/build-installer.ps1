@@ -134,14 +134,16 @@ if (-not $checksumText.Contains($hash) -or -not $checksumText.Contains($setupNam
 $releaseNotes = @"
 # Clipora v$version
 
-Clipora v$version is a visual-polish update for this fully local Windows clipboard-history tool. It replaces abrupt expanding vertical scrollbars with a compact, theme-aware design across Fluent and Liquid Glass while preserving the existing scrolling behavior.
+Clipora v$version is a maintenance and accessibility update for this fully local Windows clipboard-history tool. It improves settings typography and layout, keeps compact scrollbars intact on very long pages, reduces redundant scrolling work, and adds an English-first bilingual installer.
 
 ## What's new
 
-- Minimal vertical scrollbars: the visible thumb is 3 DIP at rest, 5 DIP on hover, and 6 DIP while dragging, contained inside a fixed 12 DIP transparent hit area so content does not shift.
-- Quieter hover feedback: the track remains transparent and the line-arrow buttons are removed, avoiding the abrupt full-track expansion of the default control.
-- Existing interaction preserved: clicking the transparent track still pages through content, and thumb dragging, smooth wheel scrolling, virtualization, and automatic visibility continue to work as before.
-- Consistent coverage: the history list, long settings drop-downs, running-application selector, and long text preview use the same neutral theme-aware treatment in Fluent and Liquid Glass.
+- Clearer Chinese settings headings: explicit Microsoft YaHei UI fallback prevents Chinese page titles from falling back to visually inconsistent glyphs.
+- Cleaner maintenance pages: the unfinished Empty Recycle Bin row has been removed, and the backup safety notice now aligns with the export and restore cards below it.
+- Stable long-page scrollbars: the compact vertical thumb keeps its 24 DIP minimum length instead of being clipped on very long content, while the existing 3 / 5 / 6 DIP visual states and scrolling behavior remain unchanged.
+- Lighter scrolling internals: redundant preview-property writes and a per-frame state-array copy are removed without changing scroll distance, timing, preview suppression, virtualization, or wheel behavior.
+- English-first bilingual setup: the normal install and uninstall flow, navigation buttons, optional tasks, post-install launch, and data-retention warnings now include Simplified Chinese without adding a language-selection step.
+- Full bilingual release information: each GitHub Release now keeps the complete English format first and follows it with a section-for-section Chinese edition containing the same download, integrity, compatibility, signing, and privacy facts.
 
 ## Download
 
@@ -171,10 +173,62 @@ The same value is provided in ``Clipora-$version-SHA256.txt``.
 Clipora follows a local-only, offline privacy model and does not upload clipboard data. Clipboard history is stored on your device under ``%LOCALAPPDATA%\Clipora`` by default. The SQLite database, stored attachments, and ``.clpbak`` backups are not encrypted, so keep them in trusted locations.
 
 See the full [changelog](https://github.com/syoosch/Clipora/blob/main/CHANGELOG.md), [user manual](https://github.com/syoosch/Clipora/blob/main/manual/README.md), and [privacy notice](https://github.com/syoosch/Clipora/blob/main/PRIVACY.md).
+
+---
+
+# Clipora v$version（中文版）
+
+Clipora v$version 是这款全本地 Windows 剪贴板历史工具的维护与易用性更新。本版改进设置页字体和布局，确保紧凑滚动条在超长页面中保持完整，减少无效滚动开销，并加入英文优先的双语安装器。
+
+## 更新内容
+
+- 更清晰的中文设置标题：显式加入 Microsoft YaHei UI 回退字体，避免中文页面标题落入观感不一致的替代字形。
+- 更整洁的维护页面：移除尚未实现的“清空回收站”设置行，并让备份安全提示与下方导出、恢复卡片左右对齐。
+- 稳定的超长页面滚动条：紧凑竖向滑块保持 24 DIP 最小长度，不再被超长内容裁切；既有 3 / 5 / 6 DIP 视觉状态和滚动行为不变。
+- 更轻量的滚动内部处理：移除重复的预览属性写入和每帧状态数组复制，不改变滚动距离、时序、预览抑制、虚拟化或滚轮行为。
+- 英文优先双语安装：正常安装与卸载流程、导航按钮、附加任务、安装后启动和数据保留警告均加入简体中文，同时不增加语言选择步骤。
+- 完整双语发布信息：每个 GitHub Release 保留完整英文格式在前，随后提供章节一一对应的中文版，两版下载、完整性、兼容性、签名和隐私事实一致。
+
+## 下载
+
+**推荐下载：** [下载 Clipora v$version Windows (x64) 安装版]($downloadUrl)
+
+这是大多数用户应该选择的安装程序。``Clipora-$version-SHA256.txt`` 资产仅用于校验下载文件。
+
+- Windows 10 版本 2004（内部版本 19041）或更高版本，或 Windows 11
+- x64
+- 自包含；无需单独安装 .NET
+- 按当前用户安装；通常不需要管理员权限
+
+> 安装程序尚未进行代码签名，Windows SmartScreen 可能显示警告。请先确认下面的 SHA-256 与校验文件一致，再选择“更多信息 → 仍要运行”。
+
+## 完整性校验
+
+``$setupName`` 的 SHA-256：
+
+``````text
+$hash
+``````
+
+``Clipora-$version-SHA256.txt`` 中也提供了相同的校验值。
+
+## 隐私
+
+Clipora 采用纯本地、离线的隐私模式，不上传任何剪贴板数据。剪贴板历史默认存储在本机的 ``%LOCALAPPDATA%\Clipora``。SQLite 数据库、已保存附件和 ``.clpbak`` 备份当前未加密，请仅保存在可信位置。
+
+查看完整的[更新日志](https://github.com/syoosch/Clipora/blob/main/CHANGELOG.md)、[中文用户手册](https://github.com/syoosch/Clipora/blob/main/manual/README.zh-CN.md)和[隐私声明](https://github.com/syoosch/Clipora/blob/main/PRIVACY.md)。
 "@
 Write-Utf8NoBom $notes ($releaseNotes.Trim() + "`r`n")
-if (-not [IO.File]::ReadAllText($notes).Contains($hash)) {
-    throw 'Release notes 未包含最终安装包 SHA-256。'
+$releaseNotesText = [IO.File]::ReadAllText($notes)
+$chineseEditionTitle = "# Clipora v$version（中文版）"
+if ([regex]::Matches($releaseNotesText, [regex]::Escape($hash)).Count -ne 2) {
+    throw 'Release notes 的中英文版未分别包含最终安装包 SHA-256。'
+}
+if ([regex]::Matches($releaseNotesText, [regex]::Escape($downloadUrl)).Count -ne 2) {
+    throw 'Release notes 的中英文版未分别包含同一个版本专属下载链接。'
+}
+if (-not $releaseNotesText.Contains($chineseEditionTitle)) {
+    throw 'Release notes 未包含完整中文版标题。'
 }
 
 $signature = Get-AuthenticodeSignature -LiteralPath $setup

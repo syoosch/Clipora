@@ -76,6 +76,9 @@ public partial class App : Application
         if (e.Args.Contains("--thumbnailselftest")) { Shutdown(DevSelfTest.RunImageThumbnailContainer()); return; }
         if (e.Args.Contains("--dragselftest")) { Shutdown(DevSelfTest.RunDragData()); return; }
         if (e.Args.Contains("--ocr-status")) { Shutdown(DevSelfTest.RunOcrStatus()); return; }
+#if DEBUG
+        if (e.Args.Contains("--performance-baseline")) { Shutdown(DevPerformanceBenchmark.Run(e.Args)); return; }
+#endif
 
         IsStorageMigrationCompletionLaunch = e.Args.Contains(StorageMigrationRestartCoordinator.CompletionArgument);
 

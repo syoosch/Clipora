@@ -164,8 +164,21 @@ internal sealed class ImagePreviewController : IDisposable
         if (_disposed)
             return;
 
+        // The first scroll notification must still cancel every pending/open preview. During the
+        // same glide, later ScrollChanged events only extend the 120ms settling deadline. Rewriting
+        // the already-cleared Popup/image/animation dependency properties on every sub-pixel offset
+        // creates WPF layout/binding work without changing preview timing or visible state.
+        bool alreadySuppressedAndClear = _policy.IsScrollActive
+            && _target is null
+            && _targetViewModel is null
+            && _targetPath is null
+            && _loadCancellation is null
+            && !_popup.IsOpen
+            && _popup.PlacementTarget is null
+            && _previewImage.Source is null;
         _policy.NotifyScroll(_nowMilliseconds());
-        CancelIoAndVisual(clearTarget: true);
+        if (!alreadySuppressedAndClear)
+            CancelIoAndVisual(clearTarget: true);
         UpdateMonitorState();
     }
 

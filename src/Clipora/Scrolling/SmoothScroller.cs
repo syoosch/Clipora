@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 
 namespace Clipora.Scrolling;
 
@@ -98,7 +97,9 @@ public sealed class SmoothScroller : ISmoothScroller
         long now = _clock.Timestamp;
         bool anyActive = false;
 
-        foreach ((IScrollSurface surface, GlideState state) in _states.ToArray())
+        // Offset writes and clock stop/start never mutate the surface dictionary. Iterating its
+        // struct enumerator preserves the exact tick order while avoiding one array copy per tick.
+        foreach ((IScrollSurface surface, GlideState state) in _states)
         {
             if (!state.IsActive)
                 continue;

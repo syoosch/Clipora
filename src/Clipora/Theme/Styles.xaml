@@ -1,6 +1,7 @@
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="pack://application:,,,/Theme/Tokens.xaml" />
@@ -252,6 +253,13 @@
                                Margin="0,2"
                                Orientation="Vertical"
                                IsDirectionReversed="True">
+                            <Track.Resources>
+                                <!--
+                                    WPF Track 不读取 Thumb.MinHeight 来计算比例槽；它把此系统指标的一半
+                                    当作最小槽长。48 因而对应设计令牌规定的 24 DIP 最小滑块。
+                                -->
+                                <sys:Double x:Key="{x:Static SystemParameters.VerticalScrollBarButtonHeightKey}">48</sys:Double>
+                            </Track.Resources>
                             <Track.DecreaseRepeatButton>
                                 <RepeatButton Command="{x:Static ScrollBar.PageUpCommand}"
                                               Focusable="False"

@@ -1069,7 +1069,7 @@
                        IsHitTestVisible="False"
                        FontSize="16"
                        FontWeight="SemiBold"
-                       FontFamily="Segoe UI Variable Display"
+                       FontFamily="Segoe UI Variable Display, Microsoft YaHei UI"
                        Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
         </Grid>
 
@@ -1533,7 +1533,7 @@
                     <TextBlock x:Name="SettingsDetailTitle"
                                Text="常规"
                                Margin="12,0,14,0"
-                               FontFamily="Segoe UI Variable Display"
+                               FontFamily="Segoe UI Variable Display, Microsoft YaHei UI"
                                FontSize="20"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
@@ -1708,21 +1708,6 @@
                                                 Content="更改…"
                                                 IsEnabled="{Binding CanChangeDataDirectory}"
                                                 Click="ChangeDataDirectory_Click" />
-                                    </Grid>
-                                </ContentControl>
-                                <Border Style="{StaticResource SettingsRowDivider}" />
-                                <ContentControl Style="{StaticResource SettingsRow}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,12,0" VerticalAlignment="Center">
-                                            <TextBlock Text="清空回收站" Style="{StaticResource SettingsRowTitle}" />
-                                            <TextBlock Text="永久删除已移入回收站的条目，不可恢复" Style="{StaticResource SettingsRowError}" />
-                                        </StackPanel>
-                                        <Button Grid.Column="1" Style="{StaticResource SettingsDangerButton}"
-                                                Content="清空" IsEnabled="False" />
                                     </Grid>
                                 </ContentControl>
                             </StackPanel>
@@ -1917,7 +1902,7 @@
 
                     <!-- M5.2 备份与恢复 -->
                     <StackPanel x:Name="SettingsBackupBody" Visibility="Collapsed">
-                        <Border Style="{StaticResource SettingsGroupCard}" Margin="0,0,0,12">
+                        <Border Style="{StaticResource SettingsGroupCard}">
                             <StackPanel Margin="14,10">
                                 <TextBlock Text="备份包含剪贴板原始内容且未加密，请保存到可信位置。"
                                            TextWrapping="Wrap" FontSize="11"
