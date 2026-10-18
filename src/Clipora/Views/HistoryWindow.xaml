@@ -47,17 +47,22 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Grid Grid.Column="0" VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
                             <Ellipse Width="8" Height="8" Fill="{Binding TypeColor}" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding TypeLabel}" FontSize="11" Margin="6,0,0,0"
+                            <TextBlock Grid.Column="1" Text="{Binding TypeLabel}" FontSize="11" Margin="6,0,0,0"
                                        VerticalAlignment="Center"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                            <TextBlock Text="{Binding SourceApp}" FontSize="12" Margin="10,0,0,0"
+                            <TextBlock Grid.Column="2" Text="{Binding SourceApp}" FontSize="12" Margin="10,0,0,0"
                                        VerticalAlignment="Center"
                                        FontFamily="Segoe UI Variable Display" FontWeight="Medium"
                                        TextTrimming="CharacterEllipsis"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        </StackPanel>
+                        </Grid>
                         <Grid Grid.Column="1" VerticalAlignment="Top" Margin="8,0,0,0">
                             <TextBlock Text="{Binding TimeText}" FontSize="11"
                                        HorizontalAlignment="Right"
@@ -90,6 +95,11 @@
                                         CommandParameter="{Binding}"
                                         Content="{Binding ActionButtonIcon}"
                                         Visibility="{Binding ShowActionButton, Converter={StaticResource BoolToVis}}" />
+                                <Button Style="{DynamicResource CardIconButton}" ToolTip="悬浮图片"
+                                        AutomationProperties.Name="悬浮图片"
+                                        Command="{Binding DataContext.FloatCardCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                        CommandParameter="{Binding}" Content="&#xE78B;"
+                                        Visibility="{Binding CanFloat, Converter={StaticResource BoolToVis}}" />
                                 <Button Style="{DynamicResource CardIconButton}" ToolTip="置顶"
                                         Command="{Binding DataContext.PinCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                         CommandParameter="{Binding}" Content="&#xE718;" />
@@ -1275,7 +1285,7 @@
                                     <Setter.Value>
                                         <ControlTemplate TargetType="{x:Type GroupItem}">
                                             <StackPanel>
-                                                <!-- 分组标题：整行点击折叠/展开（置顶组不响应、不显示 chevron） -->
+                                                <!-- 分组标题：置顶组与时间组均可整行点击折叠/展开 -->
                                                 <Grid Margin="6,12,8,6" Cursor="Hand"
                                                       Background="Transparent"
                                                       PreviewMouseLeftButtonDown="GroupHeader_MouseLeftButtonDown">
@@ -1286,7 +1296,6 @@
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Grid.Column="0"
                                                                Text="{Binding Name.ChevronGlyph}"
-                                                               Visibility="{Binding Name.IsPinned, Converter={StaticResource BoolToVis}, ConverterParameter=invert}"
                                                                FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                                                FontSize="9" VerticalAlignment="Center" Margin="0,0,5,0"
                                                                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />

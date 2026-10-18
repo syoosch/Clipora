@@ -2,7 +2,7 @@
 
 **English** | [简体中文](README.zh-CN.md) · [Back to the project page](../README.md)
 
-This manual applies to Clipora v0.4.6. The current application interface is Simplified Chinese; English names below describe the corresponding controls and settings.
+This manual applies to Clipora v0.5.0. The current application interface is Simplified Chinese; English names below describe the corresponding controls and settings.
 
 ## Contents
 
@@ -11,6 +11,7 @@ This manual applies to Clipora v0.4.6. The current application interface is Simp
 - [Capture clipboard content](#capture-clipboard-content)
 - [Find and organize history](#find-and-organize-history)
 - [Reuse, open, and drag content](#reuse-open-and-drag-content)
+- [Floating reference images](#floating-reference-images)
 - [Global hotkeys](#global-hotkeys)
 - [Settings](#settings)
 - [Files and storage](#files-and-storage)
@@ -21,7 +22,7 @@ This manual applies to Clipora v0.4.6. The current application interface is Simp
 
 ## Install and first run
 
-1. Open the [latest release](https://github.com/syoosch/Clipora/releases/latest) and download `Clipora-0.4.6-setup.exe`.
+1. Open the [latest release](https://github.com/syoosch/Clipora/releases/latest) and download `Clipora-0.5.0-setup.exe`.
 2. Run the installer. Clipora installs for the current Windows user and does not require administrator rights. The setup wizard shows English and Simplified Chinese together.
 3. The installer is currently unsigned. If SmartScreen appears, choose **More info**, compare the installer name and SHA-256 with the release, and continue only if the file is trusted.
 4. Keep Clipora running in the tray so it can monitor new clipboard changes.
@@ -32,7 +33,7 @@ Clipora stores data under `%LOCALAPPDATA%\Clipora` by default. A custom data loc
 
 - Press `Alt+V` to show the main panel.
 - The title bar provides search/filter, always-on-top, minimize, Settings, and close controls.
-- History is shown newest first and grouped into collapsible eight-hour periods. Pinned cards remain in a separate section at the top.
+- History is shown newest first and grouped into collapsible eight-hour periods. Pinned cards remain in a separate, collapsible section at the top.
 - Cards show the detected type, source application, time, preview, and actions that appear on hover.
 - Minimizing uses the configured behavior; the default edge-docked strip can be moved between screen edges and recalled by hovering or clicking.
 - Closing the window normally keeps Clipora running in the notification area. Use the tray menu when you want to reopen or exit the application.
@@ -60,8 +61,8 @@ When duplicate merging is enabled, copying or dragging the same external content
 - Switch between type filtering and tag filtering.
 - Image text detected by Windows OCR is included in search results when OCR is enabled.
 - Create tags from the filter area or Settings, then rename, recolor, reorder, or delete them in tag management.
-- Pin items that must remain at the top and must not be removed by retention cleanup.
-- Delete sends an item to the recycle bin. Restore it when needed, or permanently remove recycled items from Settings.
+- Pin items that must remain at the top and must not be removed by retention cleanup. Click the pinned heading to collapse or expand the group; the count remains visible. Search and filter refreshes preserve the state; reloading history or restarting expands the group again.
+- Delete hides an item from active history. A recycle-bin interface for restoring or permanently clearing deleted items is not yet available. Deletion is not a secure erase, and retention cleanup does not currently purge these hidden records.
 - The optional back-to-top button appears after scrolling through a long history.
 
 ## Reuse, open, and drag content
@@ -80,6 +81,18 @@ Click a card to write its content back to the clipboard. When automatic paste is
 ### Drag out
 
 Drag supported cards into another application or File Explorer. A reference-only file card checks the original path when reuse or drag starts. If the source has moved or been deleted, restore it to the original location or capture it again.
+
+## Floating reference images
+
+1. Find an image or a single-image file card and choose its **Float (悬浮)** action next to **Open**.
+2. Drag anywhere on the image to move the window. Drag an edge or corner to resize it; the image's aspect ratio is preserved.
+3. Move the pointer over the window to reveal its close button. You can also press `Esc` while the window is active.
+
+The window is always on top, with no toggle, copy action, editor, or toolbar. You can open several images; opening the same card again reuses its window. Floating images remain visible when the main panel is hidden. Exiting Clipora closes all floating windows, and restarting does not restore them.
+
+Each window displays a snapshot of the loaded image, so deleting its original file or history card does not immediately remove an already loaded image. Close the floating window when you no longer want it visible. Very large images are reduced to a maximum of 4096 pixels on their longest edge for display; the original image is unchanged.
+
+Floating images are intended for ordinary apps and windowed or borderless games. Exclusive fullscreen, click-through, and separate image zoom or panning are not supported in this version.
 
 ## Global hotkeys
 
@@ -108,8 +121,7 @@ Sequential paste stops after the last item instead of looping. Capture or import
 - retention: 1, 3, 7, or 30 days, or forever; the default is 3 days;
 - per-item size limit, default 25 MB;
 - duplicate merging;
-- data-directory migration;
-- permanent recycle-bin cleanup.
+- data-directory migration.
 
 ### Hotkeys
 

@@ -1,0 +1,75 @@
+<Window x:Class="Clipora.Views.FloatingCardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:common="clr-namespace:Clipora.Common"
+        Title="Clipora · 悬浮图片"
+        Width="{StaticResource FloatingCardWidth}" Height="{StaticResource FloatingCardHeight}"
+        MinWidth="{StaticResource FloatingCardMinWidth}" MinHeight="{StaticResource FloatingCardMinHeight}"
+        Style="{x:Null}" AllowsTransparency="False" WindowStyle="None" ResizeMode="CanResize"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False"
+        WindowStartupLocation="Manual"
+        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+        FontFamily="Segoe UI Variable Text, Microsoft YaHei UI"
+        UseLayoutRounding="True" PreviewKeyDown="Window_PreviewKeyDown">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="0" ResizeBorderThickness="5"
+                            GlassFrameThickness="0" CornerRadius="{StaticResource RadiusWindow}"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
+    <Window.Resources>
+        <common:BoolToVisibilityConverter x:Key="BoolToVis" />
+    </Window.Resources>
+    <Border BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+            CornerRadius="{StaticResource RadiusWindow}" Background="Transparent"
+            MouseLeftButtonDown="Surface_MouseLeftButtonDown">
+        <Grid Margin="3" Cursor="SizeAll">
+            <Image x:Name="ContentImage" Source="{Binding Image}" Stretch="Uniform"
+                   IsHitTestVisible="False" RenderOptions.BitmapScalingMode="HighQuality" />
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="12" Margin="12,30,12,12"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       Visibility="{Binding HasMessage, Converter={StaticResource BoolToVis}}" />
+            <Button Width="24" Height="24" Margin="2" HorizontalAlignment="Right" VerticalAlignment="Top"
+                    ToolTip="关闭悬浮图片" AutomationProperties.Name="关闭悬浮图片"
+                    Click="Close_Click" Cursor="Hand" Focusable="False"
+                    FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" Content="&#xE711;"
+                    Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Opacity" Value="0" />
+                        <Setter Property="Template">
+                            <Setter.Value><ControlTemplate TargetType="Button">
+                                <Border x:Name="surface" CornerRadius="12" BorderThickness="1"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="surface" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate></Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                <DataTrigger.EnterActions><BeginStoryboard><Storyboard>
+                                    <DoubleAnimation Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12">
+                                        <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard></BeginStoryboard></DataTrigger.EnterActions>
+                                <DataTrigger.ExitActions><BeginStoryboard><Storyboard>
+                                    <DoubleAnimation Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16">
+                                        <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard></BeginStoryboard></DataTrigger.ExitActions>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </Grid>
+    </Border>
+</Window>

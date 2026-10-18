@@ -888,7 +888,7 @@ public static class DevSelfTest
             // —— 图片大预览：悬停状态、滚动隔离、稳定定位与有界 STA 解码 ——
             RunImagePreviewTests(dir);
 
-            // —— 时间段分组策略重构（行为保持）：段键/默认展开/捕获展开/置顶/点击翻转 ——
+            // —— 分组策略：段键/默认展开/捕获展开/置顶折叠/点击翻转 ——
             RunGroupingTests();
 
             // —— 标签管理编排重构（行为保持）：改名去重/上下移重排序/改色无变化判定 ——
@@ -5155,7 +5155,7 @@ public static class DevSelfTest
     }
 
     /// <summary>
-    /// 时间段分组策略重构（架构候选 7，行为保持型）自检。
+    /// 时间段与置顶分组策略自检。
     /// 直接驱动 <see cref="ClipGrouping"/>，验证段键 / 缓存复用 / 默认展开 / 捕获展开 / 置顶 / 翻转，
     /// 无需 ICollectionView。用「当天本地 03/12/20 点」构造，避免时区/日期波动。
     /// </summary>
@@ -5190,22 +5190,26 @@ public static class DevSelfTest
         ClipGroupHeader hNoon = grouping.Resolve(noon);
         ClipGroupHeader hNight = grouping.Resolve(night);
         ClipGroupHeader hPin = grouping.Resolve(pinned);
-        Assert(hPin.IsPinned && hPin.IsExpanded, "置顶组应恒展开");
+        Assert(hPin.IsPinned && hPin.IsExpanded, "置顶组应默认展开");
 
-        // 默认仅展开最新一段（晚间），其余非置顶折叠，置顶恒展开
+        // 默认仅展开最新一段（晚间），其余非置顶折叠，置顶默认展开
         grouping.ApplyDefaultExpansion(new[] { dawn, dawn2, noon, night, pinned });
         Assert(hNight.IsExpanded, "默认应展开最新段（晚间）");
         Assert(!hDawn.IsExpanded, "凌晨段默认应折叠");
         Assert(!hNoon.IsExpanded, "日间段默认应折叠");
         Assert(hPin.IsExpanded, "置顶组默认仍展开");
 
-        // 点击翻转：普通组可翻，置顶组忽略
+        // 点击翻转：时间组和置顶组均可折叠、展开
         grouping.Toggle(hDawn);
         Assert(hDawn.IsExpanded, "翻转应展开折叠的凌晨段");
         grouping.Toggle(hDawn);
         Assert(!hDawn.IsExpanded, "再次翻转应折叠");
         grouping.Toggle(hPin);
-        Assert(hPin.IsExpanded, "置顶组翻转无效，恒展开");
+        Assert(!hPin.IsExpanded, "点击置顶组标题应收起");
+        Assert(ReferenceEquals(grouping.Resolve(pinned), hPin) && !grouping.Resolve(pinned).IsExpanded,
+            "重新解析置顶分组应保留收起态");
+        grouping.Toggle(hPin);
+        Assert(hPin.IsExpanded, "再次点击置顶组标题应展开");
 
         // 捕获展开：把折叠的日间段展开
         grouping.ExpandFor(noon);
@@ -5214,6 +5218,7 @@ public static class DevSelfTest
         // Clear 后重新解析得到新实例（折叠态不再保留）
         grouping.Clear();
         Assert(!ReferenceEquals(grouping.Resolve(dawn), hDawn), "Clear 后应重建 header 实例");
+        Assert(grouping.Resolve(pinned).IsExpanded, "整表重载后置顶组应恢复默认展开");
     }
 
     /// <summary>

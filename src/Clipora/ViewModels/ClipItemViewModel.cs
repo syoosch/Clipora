@@ -85,6 +85,8 @@ public sealed class ClipItemViewModel : ObservableObject
     public bool ShowActionButton => !IsMultiFile && !IsDirectoryFile;
     /// <summary>是否为可选取文字的类型（弹窗选取）。</summary>
     public bool IsSelectableType => Type is ClipType.Text or ClipType.RichText or ClipType.Code or ClipType.Color;
+    /// <summary>首版仅图片可悬浮（含有图片预览的单个图片文件）。</summary>
+    public bool CanFloat => HasThumbnail;
     /// <summary>操作按钮图标（Segoe Fluent Icons）。</summary>
     public string ActionButtonIcon => IsSelectableType ? "" : "";
     /// <summary>操作按钮 Tooltip。</summary>

@@ -37,6 +37,7 @@ public partial class App : Application
     private System.Drawing.Icon? _trayIconResource;
     private HistoryWindow? _window;
     private FloatingBarWindow? _floatingBar;
+    private FloatingCardManager? _floatingCards;
     private RetentionCleanupService? _retentionCleanup;
     private StorageMigrationRestartCoordinator? _storageMigrationRestart;
     private SqliteClipStore? _clipStore;
@@ -77,6 +78,12 @@ public partial class App : Application
         if (e.Args.Contains("--dragselftest")) { Shutdown(DevSelfTest.RunDragData()); return; }
         if (e.Args.Contains("--ocr-status")) { Shutdown(DevSelfTest.RunOcrStatus()); return; }
 #if DEBUG
+        if (e.Args.Contains("--floating-card-check"))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Dispatcher.BeginInvoke(new Action(async () => Shutdown(await DevFloatingCardCheck.RunAsync())));
+            return;
+        }
         if (e.Args.Contains("--performance-baseline")) { Shutdown(DevPerformanceBenchmark.Run(e.Args)); return; }
 #endif
 
@@ -339,6 +346,8 @@ public partial class App : Application
             BackupService = backupService,
         };
         MainWindow = _window; // 临时启动窗可能曾成为首个 Window；正常组合根必须显式接管 MainWindow。
+        _floatingCards = new FloatingCardManager();
+        viewModel.FloatCardRequested += item => _floatingCards.Open(item, _window);
         // 把主窗口交给主题服务：仅「跟随系统」模式监听系统主题变化，固定浅/深色不被系统覆盖。
         themeService.AttachWindow(_window);
         // 按当前视觉皮肤设置窗口背景质感：液态玻璃 = Acrylic，Fluent = Mica（视觉基线不变）。
@@ -879,6 +888,7 @@ public partial class App : Application
         _ocrProcessing?.Dispose();
         _imagePreviewLoader?.Dispose();
         _floatingBar?.Close();
+        _floatingCards?.Dispose();
         _hotkey?.Dispose();
         _monitor?.Dispose();
         _foreground?.Dispose();

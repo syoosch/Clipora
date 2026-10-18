@@ -6,9 +6,8 @@ using Clipora.Services;
 namespace Clipora.ViewModels;
 
 /// <summary>
-/// 时间段分组策略 + 折叠态缓存（行为保持型重构：原先散落在 MainViewModel / TimeFormat /
-/// ClipGroupHeader / HistoryWindow 四处的「8 小时段 + 置顶组恒展开 + 默认只展开最新段 +
-/// 捕获新条目展开其所在段 + 点击翻转」收口于此）。
+/// 时间段分组策略 + 折叠态缓存：8 小时段 + 默认展开置顶组和最新时间段 +
+/// 捕获新条目展开其所在组 + 点击标题翻转展开态。
 ///
 /// 只负责"段键策略 + header 缓存 + 展开决策"，不触碰 <see cref="System.Windows.Data.ICollectionView"/>
 /// 与 <see cref="System.Collections.ObjectModel.ObservableCollection{T}"/>；折叠态翻转的是缓存中
@@ -48,7 +47,7 @@ public sealed class ClipGrouping
             group.NotifyDateChanged();
     }
 
-    /// <summary>默认仅展开最新一段（非置顶）；置顶组恒展开。须在条目已通过 <see cref="Resolve"/> 预填充缓存后调用。</summary>
+    /// <summary>默认仅展开最新一段（非置顶）；置顶组保留已有展开态（创建时默认展开）。须在条目已通过 <see cref="Resolve"/> 预填充缓存后调用。</summary>
     public void ApplyDefaultExpansion(IEnumerable<ClipItem> items)
     {
         string? newestKey = null;
@@ -76,11 +75,9 @@ public sealed class ClipGrouping
     /// <summary>展开某条目所属分组（新捕获条目落入折叠组时调用，避免"看不见"）。</summary>
     public void ExpandFor(ClipItem item) => Resolve(item).IsExpanded = true;
 
-    /// <summary>点击分组标题：翻转展开态（置顶组忽略），不触碰集合。</summary>
+    /// <summary>点击任意分组标题：翻转展开态，不触碰集合。</summary>
     public void Toggle(ClipGroupHeader group)
     {
-        if (group.IsPinned)
-            return;
         group.IsExpanded = !group.IsExpanded;
     }
 }

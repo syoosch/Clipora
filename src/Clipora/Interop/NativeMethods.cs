@@ -42,11 +42,25 @@ internal static class NativeMethods
     public const int WM_NCRBUTTONDOWN = 0x00A4;
     public const int WM_NCMBUTTONDOWN = 0x00A7;
     public const int WM_CAPTURECHANGED = 0x0215;
+    public const int WM_SIZING = 0x0214;
+    public const int WMSZ_LEFT = 1;
+    public const int WMSZ_RIGHT = 2;
+    public const int WMSZ_TOP = 3;
+    public const int WMSZ_TOPLEFT = 4;
+    public const int WMSZ_TOPRIGHT = 5;
+    public const int WMSZ_BOTTOM = 6;
+    public const int WMSZ_BOTTOMLEFT = 7;
+    public const int WMSZ_BOTTOMRIGHT = 8;
     public const int WM_ENTERSIZEMOVE = 0x0231;
     public const int WM_EXITSIZEMOVE = 0x0232;
 
     [DllImport("user32.dll")]
     public static extern IntPtr DefWindowProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+#if DEBUG
+    [DllImport("user32.dll", EntryPoint = "SendMessageW")]
+    public static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
+#endif
 
     [DllImport("user32.dll")]
     public static extern IntPtr MonitorFromPoint(POINT point, uint flags);

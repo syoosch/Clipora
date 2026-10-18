@@ -134,16 +134,18 @@ if (-not $checksumText.Contains($hash) -or -not $checksumText.Contains($setupNam
 $releaseNotes = @"
 # Clipora v$version
 
-Clipora v$version is a maintenance and accessibility update for this fully local Windows clipboard-history tool. It improves settings typography and layout, keeps compact scrollbars intact on very long pages, reduces redundant scrolling work, and adds an English-first bilingual installer.
+Clipora v$version adds minimal floating image windows and a collapsible pinned group to this fully local Windows clipboard-history tool. Keep screenshots and reference images visible while using other applications or playing windowed or borderless games.
 
 ## What's new
 
-- Clearer Chinese settings headings: explicit Microsoft YaHei UI fallback prevents Chinese page titles from falling back to visually inconsistent glyphs.
-- Cleaner maintenance pages: the unfinished Empty Recycle Bin row has been removed, and the backup safety notice now aligns with the export and restore cards below it.
-- Stable long-page scrollbars: the compact vertical thumb keeps its 24 DIP minimum length instead of being clipped on very long content, while the existing 3 / 5 / 6 DIP visual states and scrolling behavior remain unchanged.
-- Lighter scrolling internals: redundant preview-property writes and a per-frame state-array copy are removed without changing scroll distance, timing, preview suppression, virtualization, or wheel behavior.
-- English-first bilingual setup: the normal install and uninstall flow, navigation buttons, optional tasks, post-install launch, and data-retention warnings now include Simplified Chinese without adding a language-selection step.
-- Full bilingual release information: each GitHub Release now keeps the complete English format first and follows it with a section-for-section Chinese edition containing the same download, integrity, compatibility, signing, and privacy facts.
+- Floating reference images: image cards and single-image file cards can open an always-on-top window. Drag the image to move it and drag an edge or corner to resize it while preserving the image's aspect ratio. Exclusive fullscreen games are outside this release's scope.
+- Minimal viewing controls: open several images at once; reopening the same card reuses its window. Hover to reveal Close, or press Esc in the active window. Floating images remain visible when the main panel is hidden and close when Clipora exits; they are not restored on restart. There is no copy, edit, or extra toolbar.
+- Collapsible pinned group: click the pinned heading to collapse or expand its cards. The heading shows the item count, and search or filter refreshes preserve the state; reloading history or restarting returns it to expanded.
+- Consistent card actions: a thin-line window icon distinguishes Float from Open without adding visual weight to the toolbar.
+- Clearer privacy information: recycle-bin restore and cleanup controls and automatic recycle-bin expiry are not yet available. Retention cleanup applies only to active, unpinned records; deleting history is not an immediate secure erase. All features remain local.
+- Updated runtime: the installer bundles .NET / WPF 10.0.13 with Microsoft's October 2026 security updates; no separate .NET installation is needed.
+- Correct image reloads: after drag-out repairs invalid image transparency, reloading reads the updated file instead of reusing stale cached pixels.
+- Reliable exit: Alt+F4 and other system close actions no longer throw when closing is configured to exit Clipora.
 
 ## Download
 
@@ -178,16 +180,18 @@ See the full [changelog](https://github.com/syoosch/Clipora/blob/main/CHANGELOG.
 
 # Clipora v$version（中文版）
 
-Clipora v$version 是这款全本地 Windows 剪贴板历史工具的维护与易用性更新。本版改进设置页字体和布局，确保紧凑滚动条在超长页面中保持完整，减少无效滚动开销，并加入英文优先的双语安装器。
+Clipora v$version 为这款全本地 Windows 剪贴板历史工具加入极简悬浮图片窗和可收起的置顶分组。使用其他应用或游玩窗口化、无边框游戏时，可以持续查看截图与参考图片。
 
 ## 更新内容
 
-- 更清晰的中文设置标题：显式加入 Microsoft YaHei UI 回退字体，避免中文页面标题落入观感不一致的替代字形。
-- 更整洁的维护页面：移除尚未实现的“清空回收站”设置行，并让备份安全提示与下方导出、恢复卡片左右对齐。
-- 稳定的超长页面滚动条：紧凑竖向滑块保持 24 DIP 最小长度，不再被超长内容裁切；既有 3 / 5 / 6 DIP 视觉状态和滚动行为不变。
-- 更轻量的滚动内部处理：移除重复的预览属性写入和每帧状态数组复制，不改变滚动距离、时序、预览抑制、虚拟化或滚轮行为。
-- 英文优先双语安装：正常安装与卸载流程、导航按钮、附加任务、安装后启动和数据保留警告均加入简体中文，同时不增加语言选择步骤。
-- 完整双语发布信息：每个 GitHub Release 保留完整英文格式在前，随后提供章节一一对应的中文版，两版下载、完整性、兼容性、签名和隐私事实一致。
+- 悬浮查看参考图片：图片卡片与单个图片文件卡片可打开始终置顶的窗口，直接拖动图片移动，拖动边缘或角时按图片比例缩放。本版暂不适配独占全屏游戏。
+- 极简查看操作：支持同时打开多张图片，同一卡片重复打开会复用窗口。鼠标移入显示关闭按钮，激活窗口后也可按 Esc 关闭。主面板隐藏后悬浮图片仍保留，退出 Clipora 时关闭，重启不恢复；不提供复制、编辑或额外工具栏。
+- 置顶分组可收起：点击置顶标题可收起或展开卡片，标题显示条目数；搜索或筛选刷新时保留状态，重新加载历史或重启后默认展开。
+- 一致的卡片操作图标：使用细线窗口图标区分“悬浮”和“打开”，保持工具栏轻巧简洁。
+- 更准确的隐私说明：回收站恢复/清空入口和自动过期清理尚未提供。保存周期只清理未置顶的活动记录，删除历史不等于立即安全擦除；所有功能仍在本地运行。
+- 更新运行时：安装包自带包含微软 2026 年 10 月安全更新的 .NET / WPF 10.0.13，无需用户单独安装 .NET。
+- 正确重载图片：拖放修复异常透明度后，重新加载会读取更新后的文件，避免重复使用旧缓存中的像素。
+- 稳定退出：设置“关闭时退出”后，使用 Alt+F4 等系统关闭操作不再触发异常。
 
 ## 下载
 

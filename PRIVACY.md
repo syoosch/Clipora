@@ -1,6 +1,6 @@
 # Clipora 隐私说明 / Privacy Notice
 
-最后更新 / Last updated: 2026-07-13
+最后更新 / Last updated: 2026-10-15
 
 ## 简体中文
 
@@ -9,11 +9,11 @@ Clipora 是纯本地 Windows 剪贴板历史工具。应用本身不发起网络
 ### 存储的数据
 
 - 剪贴板文字、富文本、URL、代码、颜色、图片、文件副本或文件原路径引用；
-- 来源应用名称/图标、标签、置顶/删除状态、创建时间和本地 OCR 结果；
+- 来源应用名称（旧数据可能保留图标路径字段）、标签、置顶/删除状态、创建时间和本地 OCR 结果；
 - 应用设置，以及你主动导出的 `.clpbak` 备份；
 - 发生错误时的本地脱敏诊断元数据。
 
-安装版默认数据目录为 `%LOCALAPPDATA%\Clipora`，也可在设置中迁移到你选择的本地目录。默认保留 3 天，可改为 1/3/7/30 天或永久；置顶项不参与自动过期清理。删除项先进入回收站，之后按应用的清理规则移除。
+安装版默认数据目录为 `%LOCALAPPDATA%\Clipora`，也可在设置中迁移到你选择的本地目录。默认保留 3 天，可改为 1/3/7/30 天或永久；置顶项不参与自动过期清理。单条删除使用软删标记；当前没有回收站恢复/清空界面，也未启用回收站自动过期清理。自动保留期清理作用于未置顶的活动记录，不能保证软删内容随之清除。
 
 ### 明文与本机访问风险
 
@@ -38,11 +38,11 @@ Clipora is a local-only Windows clipboard-history application. The app itself ma
 ### Data stored
 
 - Clipboard text, rich text, URLs, code, colors, images, copied files, or references to original file paths;
-- Source-application names/icons, tags, pin/deletion state, timestamps, and local OCR results;
+- Source-application names (older records may retain an icon-path field), tags, pin/deletion state, timestamps, and local OCR results;
 - App settings and `.clpbak` backups that you explicitly export;
 - Redacted local diagnostic metadata when an error occurs.
 
-The installed app stores data in `%LOCALAPPDATA%\Clipora` by default and can migrate it to another local folder selected in Settings. Retention defaults to 3 days and can be set to 1/3/7/30 days or forever; pinned items are exempt from automatic expiry. Deleted items first enter the recycle bin and are later removed under the app's cleanup rules.
+The installed app stores data in `%LOCALAPPDATA%\Clipora` by default and can migrate it to another local folder selected in Settings. Retention defaults to 3 days and can be set to 1/3/7/30 days or forever; pinned items are exempt from automatic expiry. Individual deletion marks records as deleted. Recycle-bin recovery/emptying controls and automatic expiry of deleted records are not currently enabled. Retention cleanup applies to unpinned active records; it does not guarantee removal of soft-deleted content.
 
 ### Plaintext and local-access risk
 

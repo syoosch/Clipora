@@ -29,6 +29,12 @@
     <CornerRadius x:Key="RadiusWindow">12</CornerRadius>
     <CornerRadius x:Key="RadiusPill">20</CornerRadius>
 
+    <!-- 图片悬浮窗：初次按此上限等比收紧，不持久化位置/尺寸。 -->
+    <sys:Double x:Key="FloatingCardWidth">480</sys:Double>
+    <sys:Double x:Key="FloatingCardHeight">360</sys:Double>
+    <sys:Double x:Key="FloatingCardMinWidth">120</sys:Double>
+    <sys:Double x:Key="FloatingCardMinHeight">80</sys:Double>
+
     <!-- 字号层级 -->
     <sys:Double x:Key="FontTitle">14</sys:Double>
     <sys:Double x:Key="FontBody">13</sys:Double>

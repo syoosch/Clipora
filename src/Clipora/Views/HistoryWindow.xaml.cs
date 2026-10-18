@@ -210,8 +210,11 @@ public partial class HistoryWindow : FluentWindow
         if (_settingsViewModel is not null)
             _settingsViewModel.PropertyChanged -= SettingsViewModel_PropertyChanged;
 
-        if (AllowClose)
+        // A system close (for example Alt+F4) is already inside WPF's close cycle.
+        // Accept it directly for Exit; calling Close() again here would throw.
+        if (AllowClose || _settings.Current.CloseTo == CloseBehavior.Exit)
         {
+            AllowClose = true;
             ExitRequested?.Invoke(this, EventArgs.Empty);
             base.OnClosing(e);
             return;

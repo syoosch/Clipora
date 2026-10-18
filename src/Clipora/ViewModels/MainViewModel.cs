@@ -71,6 +71,7 @@ public sealed class MainViewModel : ObservableObject
     public RelayCommand ToggleTagManagerCommand { get; }
     public RelayCommand CloseTagManagerCommand { get; }
     public RelayCommand CardActionCommand { get; }
+    public RelayCommand FloatCardCommand { get; }
     public RelayCommand CloseSelectionPopupCommand { get; }
 
     /// <summary>搜索框 + 类型筛选是否展开（默认收起）。</summary>
@@ -233,6 +234,11 @@ public sealed class MainViewModel : ObservableObject
         });
 
         CloseSelectionPopupCommand = new RelayCommand(_ => CloseSelectionPopup());
+        FloatCardCommand = new RelayCommand(p =>
+        {
+            if (p is ClipItemViewModel { CanFloat: true } item)
+                FloatCardRequested?.Invoke(item);
+        });
 
         ToggleTagEditorCommand = new RelayCommand(p =>
         {
@@ -290,6 +296,7 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>使用后触发（供上层执行隐藏面板 + 自动粘贴）。</summary>
     public event Action<ClipItem>? Used;
+    public event Action<ClipItemViewModel>? FloatCardRequested;
 
     /// <summary>仅引用文件原路径不可用时触发，供窗口层显示瞬时提示。</summary>
     public event Action? FileReferenceUnavailable;
@@ -521,7 +528,7 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>刷新列表视图（重新跑筛选/排序/分组）。分组折叠态由共享 ClipGroupHeader 缓存保持。</summary>
     private void RefreshView() => ItemsView.Refresh();
 
-    /// <summary>供窗口层点击分组标题时调用：翻转该组展开态（置顶组忽略），不触碰集合。</summary>
+    /// <summary>供窗口层点击分组标题时调用：翻转该组展开态，不触碰集合。</summary>
     public void ToggleGroup(ClipGroupHeader group) => _grouping.Toggle(group);
 
     public void ToggleFilterMode()

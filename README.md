@@ -13,24 +13,29 @@
 
 Clipora is a local clipboard-history tool for Windows. It records the content you copy, keeps it organized, and lets you find and reuse it without sending clipboard data off your device.
 
-Current version: **v0.4.6** · [Download the latest installer](https://github.com/syoosch/Clipora/releases/latest) · [Read the user manual](manual/README.md)
+Current version: **v0.5.0** · [Download the latest installer](https://github.com/syoosch/Clipora/releases/latest) · [Read the user manual](manual/README.md)
 
 ## Why Clipora
 
 - **Find copied content quickly**: search your history, filter by content type or tag, and keep important items pinned.
 - **Keep more than text**: work with rich text, links, code, colors, images, files, and content dragged into the panel.
 - **Reuse content with fewer steps**: click a card to copy and paste it back, drag items into other apps, or use configurable global hotkeys.
+- **Keep reference images visible**: float screenshots above other apps, drag them freely, and resize them in proportion.
 - **Keep control of your data**: Clipora works offline, supports pause and app exclusions, and stores its database and payloads locally.
 
 ## Core capabilities
 
 ### Capture and organize
 
-Clipora automatically classifies copied text, rich text, URLs, code, colors, images, and files. Cards show their source app and are grouped into collapsible time periods. You can also drag files, text, images, and rich text into the panel, add tags, pin important items, and recover deleted items from the recycle bin.
+Clipora automatically classifies copied text, rich text, URLs, code, colors, images, and files. Cards show their source app and are grouped into collapsible time periods. You can also drag files, text, images, and rich text into the panel, add tags and pin important items. Both time groups and the pinned group can be collapsed.
 
 ### Find and reuse
 
 Search across clipboard history, filter by type or tag, and use offline Windows OCR to make text inside images searchable. Click a card to copy it and optionally paste it back into the previous window, or drag supported content into another app. HTTP/HTTPS links and ordinary files can be opened from their cards; potentially active files require confirmation.
+
+### Floating images
+
+Use the Float action on an image card or a single-image file card to open a minimal, always-on-top window. Drag anywhere on the image to move it; drag an edge or corner to resize it while preserving its aspect ratio. Several images can stay visible while the main panel is hidden. Hover to reveal the close button, or press Esc while the window is active. Floating windows close when Clipora exits and are not restored on restart. Windowed and borderless games are the intended use; exclusive fullscreen is not supported.
 
 ### Faster workflows
 
@@ -59,7 +64,7 @@ For backup, storage, privacy, window, and troubleshooting instructions, see the 
 ## Installation
 
 1. Open the [latest release](https://github.com/syoosch/Clipora/releases/latest).
-2. Download `Clipora-0.4.6-setup.exe` and run it. Installation is per-user and does not require administrator rights. The setup wizard shows English and Simplified Chinese together.
+2. Download `Clipora-0.5.0-setup.exe` and run it. Installation is per-user and does not require administrator rights. The setup wizard shows English and Simplified Chinese together.
 3. The installer is not code-signed. If Windows SmartScreen appears, choose **More info**, verify the publisher context and checksum from the release, then choose **Run anyway** if you trust the file.
 
 ## Documentation
@@ -72,7 +77,7 @@ For backup, storage, privacy, window, and troubleshooting instructions, see the 
 
 ## Development
 
-Clipora is built with .NET 10, WPF, WPF-UI, and SQLite. Development builds must be launched through `scripts/start-dev.ps1` so they use the repository's isolated data directory.
+Clipora is built with .NET 10, WPF, WPF-UI, and SQLite. Use .NET SDK 10.0.402 or later with the .NET / WPF 10.0.13 runtime or a later compatible security update. Development builds must be launched through `scripts/start-dev.ps1` so they use the repository's isolated data directory.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/start-dev.ps1 -Build

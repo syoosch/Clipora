@@ -62,6 +62,8 @@ internal static class ClipboardImageNormalizer
     {
         var image = new BitmapImage();
         image.BeginInit();
+        // Alpha repair can replace this file while WPF still caches the original URI.
+        image.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
         image.CacheOption = BitmapCacheOption.OnLoad;
         image.UriSource = new Uri(path);
         image.EndInit();

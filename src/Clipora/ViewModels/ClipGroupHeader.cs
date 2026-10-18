@@ -19,7 +19,7 @@ public sealed class ClipGroupHeader : ObservableObject, IEquatable<ClipGroupHead
     /// 不直接显示——显示用随日期变化的 <see cref="Title"/>。</summary>
     public string Key { get; }
 
-    /// <summary>是否为置顶组（恒展开、不可折叠、不显示 chevron）。</summary>
+    /// <summary>是否为置顶组（默认展开，与时间组一样可折叠）。</summary>
     public bool IsPinned { get; }
 
     public ClipGroupHeader(string key, DateTime representativeUtc, bool isPinned = false)
@@ -37,13 +37,12 @@ public sealed class ClipGroupHeader : ObservableObject, IEquatable<ClipGroupHead
     /// <summary>日期翻天时刷新标题绑定（段键不变、条目不重分组，仅相对标签由今天变昨天）。</summary>
     public void NotifyDateChanged() => OnPropertyChanged(nameof(Title));
 
-    /// <summary>当前是否展开。置顶组恒为 true；普通组可折叠。</summary>
+    /// <summary>当前是否展开；置顶组和时间组均可折叠。</summary>
     public bool IsExpanded
     {
-        get => IsPinned || _isExpanded;
+        get => _isExpanded;
         set
         {
-            if (IsPinned) return; // 置顶组不可折叠
             if (Set(ref _isExpanded, value))
                 OnPropertyChanged(nameof(ChevronGlyph));
         }
