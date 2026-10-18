@@ -29,7 +29,7 @@
                 移除悬浮整轨突显与上下箭头。
          0.4.6：修复设置标题中文字体与超长页面滑块裁切，整理设置卡片和滚动冗余，
                 并提供英文优先双语安装器与完整双语 Release notes。 -->
-    <Version>0.5.0</Version>
+    <Version>0.5.1</Version>
     <!-- 发布元数据：决定 exe「详细信息」属性页与安装包显示信息（M6.3a） -->
     <Product>Clipora</Product>
     <AssemblyTitle>Clipora</AssemblyTitle>
@@ -37,9 +37,9 @@
     <Authors>Clipora</Authors>
     <Description>Clipora — 本地 Windows 剪贴板历史工具（纯本地，不联网）</Description>
     <Copyright>Copyright © 2026 Clipora</Copyright>
-    <FileVersion>0.5.0.0</FileVersion>
-    <AssemblyVersion>0.5.0.0</AssemblyVersion>
-    <InformationalVersion>0.5.0</InformationalVersion>
+    <FileVersion>0.5.1.0</FileVersion>
+    <AssemblyVersion>0.5.1.0</AssemblyVersion>
+    <InformationalVersion>0.5.1</InformationalVersion>
     <!-- 不把 git 提交哈希追加进信息版本号，使属性页「产品版本」只显示 SemVer。 -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>

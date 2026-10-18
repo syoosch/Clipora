@@ -13,7 +13,7 @@
 
 Clipora 是一款 Windows 本地剪贴板历史工具。它自动记录并整理你复制的内容，让常用信息能够被快速找回和重用，同时不会把剪贴板数据发送到设备之外。
 
-当前版本：**v0.5.0** · [下载最新版安装包](https://github.com/syoosch/Clipora/releases/latest) · [阅读使用手册](manual/README.zh-CN.md)
+当前版本：**v0.5.1** · [下载最新版安装包](https://github.com/syoosch/Clipora/releases/latest) · [阅读使用手册](manual/README.zh-CN.md)
 
 ## 为什么选择 Clipora
 
@@ -63,7 +63,7 @@ Clipora 会自动识别复制的文字、富文本、URL、代码、颜色、图
 ## 安装
 
 1. 打开[最新发布页面](https://github.com/syoosch/Clipora/releases/latest)。
-2. 下载并运行 `Clipora-0.5.0-setup.exe`。安装范围为当前用户，不需要管理员权限；安装向导会同时显示英文与简体中文。
+2. 下载并运行 `Clipora-0.5.1-setup.exe`。安装范围为当前用户，不需要管理员权限；安装向导会同时显示英文与简体中文。
 3. 当前安装包未做代码签名。若 Windows SmartScreen 出现提示，请选择“更多信息”，核对 Release 中的文件名和校验值；确认文件可信后再选择“仍要运行”。
 
 ## 文档

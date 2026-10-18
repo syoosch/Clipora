@@ -2,7 +2,7 @@
 
 [English](README.md) | **简体中文** · [返回项目首页](../README.zh-CN.md)
 
-本手册适用于 Clipora v0.5.0。
+本手册适用于 Clipora v0.5.1。
 
 ## 目录
 
@@ -22,7 +22,7 @@
 
 ## 安装与首次运行
 
-1. 打开[最新发布页面](https://github.com/syoosch/Clipora/releases/latest)，下载 `Clipora-0.5.0-setup.exe`。
+1. 打开[最新发布页面](https://github.com/syoosch/Clipora/releases/latest)，下载 `Clipora-0.5.1-setup.exe`。
 2. 运行安装包。Clipora 仅为当前 Windows 用户安装，不需要管理员权限；安装向导会同时显示英文与简体中文。
 3. 当前安装包未做代码签名。若 SmartScreen 出现提示，请选择“更多信息”，将安装包名称和 SHA-256 与 Release 中的信息对照，仅在确认文件可信后继续运行。
 4. 让 Clipora 在托盘中保持运行，它才能持续监听新的剪贴板变化。

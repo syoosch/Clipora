@@ -7,7 +7,7 @@
 ; 由 scripts/build-installer.ps1 调 ISCC 编译；PublishDir 可用 /DPublishDir=... 覆盖。
 
 #define MyAppName "Clipora"
-#define MyAppVersion "0.5.0"
+#define MyAppVersion "0.5.1"
 #define MyAppPublisher "Clipora"
 #define MyAppExeName "Clipora.exe"
 #ifndef PublishDir
@@ -108,7 +108,8 @@ en.StatusUninstalling=Uninstalling %1... / 正在卸载 %1...
 en.AdditionalIcons=Additional shortcuts: / 附加快捷方式：
 en.CreateDesktopIcon=Create a &desktop shortcut / 创建桌面快捷方式
 en.LaunchProgram=Launch %1 / 启动 %1
-en.UninstallProgram=Uninstall %1 / 卸载 %1
+; Used as a shortcut file name: do not use slash separators in this message.
+en.UninstallProgram=Uninstall %1 - 卸载 %1
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; Flags: unchecked
